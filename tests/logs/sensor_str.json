@@ -1,0 +1,30 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T18:00:00.000Z",
+      "command": "on",
+      "my-sensor": [ "active" ]
+    },
+    { "timestamp":"2022-01-02T18:03:00.000Z",
+      "command": "on",
+      "my-sensor": [ "active" ]
+    },
+    { "timestamp":"2022-01-03T17:58:00.000Z",
+      "command": "on",
+      "my-sensor": [ "active" ]
+    }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor",
+      "capability": "sensor",
+      "value": [
+        {
+          "attribute": "motion",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

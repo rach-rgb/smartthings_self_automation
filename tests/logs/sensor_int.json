@@ -1,0 +1,42 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T18:00:00.000Z",
+      "command": "on",
+      "my-sensor": [ 72 ]
+    },
+    { "timestamp":"2022-01-01T20:00:00.000Z",
+      "command": "off",
+      "my-sensor": [ 80 ]
+    },
+    { "timestamp":"2022-01-02T18:03:00.000Z",
+      "command": "on",
+      "my-sensor": [ 73 ]
+    },
+    { "timestamp":"2022-01-02T20:03:00.000Z",
+      "command": "off",
+      "my-sensor": [ 85 ]
+    },
+    { "timestamp":"2022-01-03T17:58:00.000Z",
+      "command": "on",
+      "my-sensor": [ 68 ]
+    },
+    { "timestamp":"2022-01-03T17:55:00.000Z",
+      "command": "off",
+      "my-sensor": [ 83 ]
+    }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor",
+      "capability": "sensor",
+      "value": [
+        {
+          "attribute": "temperature",
+          "type": "integer"
+        }
+      ]
+    }
+  ]
+}

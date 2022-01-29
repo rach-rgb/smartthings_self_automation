@@ -1,0 +1,56 @@
+{
+  "name": "my-device-my-sensor-my-device-2-on",
+  "actions": [
+    {
+      "if": {
+        "or": [
+          {
+            "greater_than": {
+              "right": {
+                "device": {
+                  "devices": [
+                    "my-sensor"
+                  ],
+                  "attribute": "temperature"
+                }
+              },
+              "left": {
+                "integer": 70
+              }
+            }
+          },
+          {
+            "equals": {
+              "left": {
+                "device": {
+                  "devices": [
+                    "my-device-2"
+                  ],
+                  "attribute": "status"
+                }
+              },
+              "right": {
+                "string": "ON"
+              }
+            }
+          }
+        ],
+        "then": [
+          {
+            "command": {
+              "devices": [
+                "my-device"
+              ],
+              "commands": [
+                {
+                  "capability": "switch",
+                  "command": "on"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
