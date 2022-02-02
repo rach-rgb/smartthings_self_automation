@@ -48,6 +48,11 @@ class SelfAutomation:
         return log_cmd
 
     # custom distance function
+    def dist(self, a, b, log):
+        x = log[int(a[0])]
+        y = log[int(b[0])]
+        return self.log_dist(x, y)
+
     def log_dist(self, x, y):
         dist = 0
         for i in range(0, len(x)):
@@ -60,25 +65,39 @@ class SelfAutomation:
                 if time.days < 0 or time.seconds >= 43200:
                     time = datetime.strptime(y_dt, frmt) - datetime.strptime(x_dt, frmt)
 
-                dist = dist + time.seconds/60 * self.weight[0]
+                dist = dist + time.seconds / 60 * self.weight[0]
             else:
                 for k in range(0, len(x[i][1])):
                     x_val = x[i][1][k]
                     y_val = y[i][1][k]
-                    if type(x_val) is int:
+                    if type(x_val) == int:
                         dist = dist + abs(x_val - y_val) * self.weight[1]
-                    elif type(x_val) is str:
+                    elif type(x_val) == str:
                         if x_val is not y_val:
                             dist = dist + 1 * self.weight[2]
         return dist
 
+    # find representative point of cluster
+    def find_point(self, cluster):
+        return cluster[0]
+
     # pick representative logs
     def cluster_log(self, logs):
         x = np.arange(len(logs)).reshape(-1, 1)
-        labels = DBSCAN(eps=3, min_samples=3, metric=self.log_dist).fit(x)
 
-        return []
+        dbscan = DBSCAN(eps=3, min_samples=3, metric=self.dist, metric_params={'log': logs}).fit(x)
+        label = dbscan.labels_
 
+        n_clusters_ = len(set(label)) - (1 if -1 in label else 0)
+        cluster = {lab: [] for lab in range(n_clusters_)}
+        for i in x:
+            idx = int(i[0])
+            if label[idx] == -1:
+                continue
+            cluster[label[idx]].append(logs[idx])
 
+        ret = []
+        for lab in range(n_clusters_):
+            ret.append(self.find_point(cluster[lab]))
 
-
+        return ret
