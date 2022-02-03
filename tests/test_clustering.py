@@ -4,7 +4,7 @@ import unittest
 from src.self_automation import SelfAutomation
 
 
-# tests for cluster_log and log_dist in self_automation
+# tests for clustering related functions in SelfAutomation module
 class TestClustering(unittest.TestCase):
     def setUp(self):
         self.automation = SelfAutomation()
@@ -73,6 +73,70 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(0, func(sen1, sen1))
         self.assertEqual(1 * w2 + 10 * w1, func(sen1, sen2))
         self.assertEqual(5 * w0 + 1 * w2 + 10 * w1 + 1 * w2, func(sen1, sen3))
+
+    # find representative value of time attribute
+    def test_avg_time(self):
+        rep, var = SelfAutomation.avg_time(
+            ['2022-01-01T18:00:00.000Z', '2022-01-01T18:00:00.000Z', '2022-01-01T18:00:00.000Z'])
+        self.assertEqual('18:00', rep)
+        self.assertEqual(0, round(var, 3))
+
+        rep, var = SelfAutomation.avg_time(
+            ['2022-01-01T12:00:00.000Z', '2022-01-01T00:00:00.000Z'])
+        self.assertEqual('06:00', rep)
+        self.assertEqual(1, round(var, 3))
+
+        # 00:00 case
+        rep, var = SelfAutomation.avg_time(
+            ['2022-01-01T23:55:00.000Z', '2022-01-01T00:00:00.000Z', '2022-01-01T00:05:00.000Z'])
+        self.assertEqual('00:00', rep)
+
+        # small variance
+        rep, var = SelfAutomation.avg_time(
+            ['2022-01-01T17:50:00.000Z', '2022-01-01T17:55:00.000Z', '2022-01-01T18:00:00.000Z',
+             '2022-01-01T18:05:00.000Z', '2022-01-01T18:10:00.000Z'])
+        self.assertEqual('18:00', rep)
+        self.assertGreater(0.2, var)
+
+        # large variance
+        rep, var = SelfAutomation.avg_time(
+            ['2022-01-01T14:00:00.000Z', '2022-01-01T16:00:00.000Z', '2022-01-01T18:00:00.000Z',
+             '2022-01-01T20:00:00.000Z', '2022-01-01T22:00:00.000Z'])
+        self.assertEqual('18:00', rep)
+        self.assertLess(0.2, var)
+
+    # find representative value of int attribute
+    def test_avg_int(self):
+        rep, var = SelfAutomation.avg_int([10, 10, 10])
+        self.assertEqual(10, rep)
+        self.assertEqual(0, var)
+
+        # large variance
+        rep, var = SelfAutomation.avg_int([10, 10, 100, 0])
+        self.assertEqual(30, rep)
+        self.assertEqual(1650, var)
+
+        # small variance
+        rep, var = SelfAutomation.avg_int([55, 60, 60, 65])
+        self.assertEqual(60, rep)
+        self.assertEqual(12.5, var)
+
+    # find representative value of string attribute
+    def test_avg_str(self):
+        # large ratio
+        rep, rat = SelfAutomation.avg_str(['active', 'active', 'active', 'active', 'inactive'])
+        self.assertEqual('active', rep)
+        self.assertEqual(0.8, rat)
+
+        # small ratio
+        rep, rat = SelfAutomation.avg_str(['active', 'active', 'active', 'inactive', 'inactive'])
+        self.assertEqual('active', rep)
+        self.assertEqual(0.6, rat)
+
+    # find representative
+    def test_find_point(self):
+        # TODO: implement this
+        self.assertFalse(1)
 
     def test_cluster_time1(self):
         logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
