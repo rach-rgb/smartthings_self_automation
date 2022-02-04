@@ -10,20 +10,19 @@ class TestClustering(unittest.TestCase):
         self.automation = SelfAutomation()
 
     # calculating distance between time attribute
-    def test_log_dist_time(self):
+    def test_log_dist1(self):
         func = self.automation.log_dist
         w = self.automation.weight[0]
 
         time1 = [('timestamp', '2022-01-01T18:00:00.000Z')]
         time2 = [('timestamp', '2022-01-01T18:10:00.000Z')]
-        time3 = [('timestamp', '2022-01-01T17:50:00.000Z')]
+        time3 = [('timestamp', '2022-01-01T17:30:00.000Z')]
 
         self.assertEqual(0, func(time1, time1))
         self.assertEqual(10 * w, func(time1, time2))
-        self.assertEqual(10 * w, func(time1, time3))
+        self.assertEqual(30 * w, func(time1, time3))
 
-    # edge case for time distance
-    def test_log_dist_time2(self):
+        # 24:00 equals 00:00 in time domain
         func = self.automation.log_dist
         w = self.automation.weight[0]
 
@@ -35,8 +34,7 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(5 * w, func(time1, time2))
         self.assertEqual(5 * w, func(time2, time3))
 
-    # calculate distance between integer attribute
-    def test_log_dist_int(self):
+    def test_log_dist2(self):
         func = self.automation.log_dist
         w = self.automation.weight[1]
 
@@ -48,8 +46,7 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(10 * w, func(sen1, sen2))
         self.assertEqual(20 * w, func(sen2, sen3))
 
-    # calculate distance between string attribute
-    def test_log_dist_string(self):
+    def test_log_dis3(self):
         func = self.automation.log_dist
         w = self.automation.weight[2]
 
@@ -59,8 +56,6 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(0, func(sen1, sen1))
         self.assertEqual(1 * w, func(sen1, sen2))
 
-    # calculate distance with mixed attributes
-    def test_log_dist_mixed(self):
         func = self.automation.log_dist
         w0 = self.automation.weight[0]
         w1 = self.automation.weight[1]
@@ -105,7 +100,6 @@ class TestClustering(unittest.TestCase):
         self.assertEqual('18:00', rep)
         self.assertLess(0.2, var)
 
-    # find representative value of int attribute
     def test_avg_int(self):
         rep, var = SelfAutomation.avg_int([10, 10, 10])
         self.assertEqual(10, rep)
@@ -121,7 +115,6 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(60, rep)
         self.assertEqual(12.5, var)
 
-    # find representative value of string attribute
     def test_avg_str(self):
         # large ratio
         rep, rat = SelfAutomation.avg_str(['active', 'active', 'active', 'active', 'inactive'])

@@ -14,8 +14,8 @@ class SelfAutomation:
         if param is None:
             self.eps = 0.5
             self.min_samples = 3
-            self.weight = [0.01, 1, 10]  # weight for time, integer, string attributes in order
-            self.thld = [0.2, 15, 0.8]  # threshold for time, integer, string attributes in order
+            self.weight = [1, 1, 1]  # weight for time, integer, string attributes in order
+            self.thld = [0.001, 15, 0.8]  # threshold for time, integer, string attributes in order
         else:
             self.eps = param['eps']
             self.min_samples = param['min_samples']
@@ -25,68 +25,68 @@ class SelfAutomation:
     # return self-generated rules
     def generate_rule(self, file_in):
         info = self.read_log(file_in)
-        log_cmd = self.split_log(info['history'])
+        log_cmd = self.cls_log(info['history'])
         for cmd in log_cmd.keys():
             log_rep = self.cluster_log(log_cmd[cmd])
 
             # build rules from representative rules
             # TODO
 
-    # distance metric for DBSCAN
+    # metric function for DBSCAN
     def __dist__(self, a, b, log):
         x = log[int(a[0])]
         y = log[int(b[0])]
         return self.log_dist(x, y)
 
-    # custom distance function
+    # return distance between two logs x and y
     def log_dist(self, x, y):
-        dist = 0
+        total = 0
         for i in range(0, len(x)):
             if x[i][0] == 'timestamp':
                 frmt = '%H:%M'
-                x_dt = x[i][1][11:16]
-                y_dt = y[i][1][11:16]
+                x_time = x[i][1][11:16]
+                y_time = y[i][1][11:16]
 
-                time = datetime.strptime(x_dt, frmt) - datetime.strptime(y_dt, frmt)
+                time = datetime.strptime(x_time, frmt) - datetime.strptime(y_time, frmt)
                 if time.days < 0 or time.seconds >= 43200:
-                    time = datetime.strptime(y_dt, frmt) - datetime.strptime(x_dt, frmt)
+                    time = datetime.strptime(y_time, frmt) - datetime.strptime(x_time, frmt)
 
-                dist = dist + time.seconds / 60 * self.weight[0]
+                total = total + time.seconds / 60 * self.weight[0]
             else:
-                for k in range(0, len(x[i][1])):
-                    x_val = x[i][1][k]
-                    y_val = y[i][1][k]
+                for j in range(0, len(x[i][1])):
+                    x_val = x[i][1][j]
+                    y_val = y[i][1][j]
                     if type(x_val) == int:
-                        dist = dist + abs(x_val - y_val) * self.weight[1]
+                        total = total + abs(x_val - y_val) * self.weight[1]
                     elif type(x_val) == str:
                         if x_val is not y_val:
-                            dist = dist + 1 * self.weight[2]
-        return dist
+                            total = total + 1 * self.weight[2]
+        return total
 
     # find representative point of cluster
     def find_point(self, cluster):
         assert(len(cluster) > 0)
         assert(cluster[0][0][0] is 'timestamp')  # first attribute is always timestamp
 
-        data = self.make_dict(cluster)
+        data = self.logs_to_dict(cluster)
 
         # get mean of each column
-        ret = []
+        ret = {}
         for k, v in data.items():
             if k == "timestamp":
                 avg, var = self.avg_time(v)
                 if var <= self.thld[0]:
-                    ret.append(('time', avg))
+                    ret['time'] = avg
             elif type(v[0]) is int:
                 avg, var = self.avg_int(v)
                 if var <= self.thld[1]:
-                    ret.append((k, avg))
+                    ret[k] = avg
             elif type(v[0]) is str:
                 avg, rat = self.avg_str(v)
                 if rat >= self.thld[2]:
-                    ret.append((k, avg))
+                    ret[k] = avg
 
-        return self.format_log(ret)
+        return self.dict_to_log(ret)
 
     # pick representative logs
     def cluster_log(self, logs):
@@ -110,63 +110,66 @@ class SelfAutomation:
         return ret
 
     # static methods
-    # read usage log of json format
+    # return a usage log as a dictionary
     @staticmethod
     def read_log(file_name):
-        with open(file_name, "r") as f:
-            info = json.load(f)
+        try:
+            with open(file_name, "r") as f:
+                info = json.load(f)
+            return info
+        except FileNotFoundError as e:
+            print(e)
+            return None
 
-        return info
-
-    # split usage log by command
+    # return a dictionary of logs,
+    # using 'command' as a key and a list of corresponding logs as a value
     @staticmethod
-    def split_log(history):
-        log_cmd = {}
-        for lg in history:
+    def cls_log(logs):
+        log_dict = {}
+        for lg in logs:
             cmd = lg['command']
 
-            pp_lg = list(i for i in lg.items() if i[0] is not 'command')
+            # exclude value of 'command' from list
+            lg_list = list(i for i in lg.items() if i[0] is not 'command')
 
-            if cmd in log_cmd:
-                log_cmd[cmd].append(pp_lg)
+            if cmd in log_dict:
+                log_dict[cmd].append(lg_list)
             else:
-                log_cmd[cmd] = [pp_lg]
+                log_dict[cmd] = [lg_list]
 
-        return log_cmd
+        return log_dict
 
-        # get average of time and variance
-        # source: https://rosettacode.org/wiki/Averages/Mean_time_of_day#Python
-
-    # make dictionary for value of cluster
+    # return a dictionary using a name of an attribute as a key and
+    # a list of corresponding values as a value
     @staticmethod
-    def make_dict(cluster):
-        sample = cluster[0]
-        data = {}
-        for lg in sample:
-            if type(lg[1]) is list:
+    def logs_to_dict(logs):
+        ret = {}
+        for lg in logs[0]:
+            if type(lg[1]) is list:  # split the list and name each attribute as 'device-name' + count
                 for i in range(0, len(lg[1])):
-                    data[lg[0] + ':' + str(i)] = [lg[1][i]]
+                    ret[lg[0] + ':' + str(i)] = [lg[1][i]]
             else:
-                data[lg[0]] = [lg[1]]
+                ret[lg[0]] = [lg[1]]
 
-        if len(cluster) > 1:
-            for log in cluster[1:]:
+        if len(logs) > 1:
+            for log in logs[1:]:
                 for lg in log:
                     if type(lg[1]) is list:
                         for i in range(0, len(lg[1])):
-                            data[lg[0] + ':' + str(i)].append(lg[1][i])
+                            ret[lg[0] + ':' + str(i)].append(lg[1][i])
                     else:
-                        data[lg[0]].append(lg[1])
+                        ret[lg[0]].append(lg[1])
 
-        return data
+        return ret
 
-    # merge dictionary to make one log
+    # return a single log generated from a given dictionary
     @staticmethod
-    def format_log(data):
-        log = []
+    def dict_to_log(data):
+        ret = []
+
         prev = None
         prev_val = []
-        for k, v in data:
+        for k, v in data.items():
             attr = k.split(':')
             if len(attr) > 1:  # keyword + num
                 keyword = attr[0]
@@ -174,28 +177,31 @@ class SelfAutomation:
                     prev_val.append(v)
                 else:  # new keyword
                     if prev is not None:
-                        log.append((prev, prev_val))
+                        ret.append((prev, prev_val))
                     prev = keyword
                     prev_val = [v]
             else:  # time
-                log.append((k, v))
+                ret.append((k, v))
 
         if prev is not None:
-            log.append((prev, prev_val))
+            ret.append((prev, prev_val))
 
-        return log
+        return ret
 
+    # return average and variance of time
+    # modify source from: https://rosettacode.org/wiki/Averages/Mean_time_of_day#Python
     @staticmethod
     def avg_time(logs):
         frmt = '%H:%M'
         dts = [datetime.strptime(lg[11:16], frmt) for lg in logs]
         minutes = [dt.hour * 60 + dt.minute for dt in dts]
 
+        # convert minutes to angle to calculate mean and variance
         day = 24 * 60
         angles = np.array([m * 360. / day for m in minutes]) * u.deg
 
         mean_angle = circmean(angles).value
-        var = circvar(angles).value
+        var = circvar(angles).value  # use angular variance
 
         mean_seconds = mean_angle * day / 360.
         if mean_seconds < 0:
@@ -204,7 +210,7 @@ class SelfAutomation:
 
         return '%02i:%02i' % (h, m), var
 
-    # get representative of string value and ratio
+    # return mode of string type values and ratio
     # assume two possible state
     @staticmethod
     def avg_str(logs):
@@ -212,7 +218,7 @@ class SelfAutomation:
 
         return counter[0][0], counter[0][1] / len(logs)
 
-    # get representative of int value and variance
+    # return mean and variance of integer type values
     @staticmethod
     def avg_int(logs):
         return np.mean(logs), np.var(logs)
