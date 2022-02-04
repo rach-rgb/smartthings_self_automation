@@ -135,80 +135,32 @@ class TestClustering(unittest.TestCase):
 
     # find representative
     def test_find_point(self):
-        # TODO: implement this
-        self.assertFalse(1)
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [55]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T17:55:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T18:05:00.000Z'), ('sensor', [65]), ('switch', ['inactive'])]]
+        point = [('time', '18:00'), ('sensor', [60]), ('switch', ['active'])]
 
-    def test_cluster_time1(self):
+        self.assertEqual(point, self.automation.find_point(logs))
+
+        # some values are rejected if variance is too high or ratio is too low
+        logs = [[('timestamp', '2022-01-01T12:00:00.000Z'), ('sensor', [55]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T17:55:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [10]), ('switch', ['active'])],
+                [('timestamp', '2022-01-01T12:00:00.000Z'), ('sensor', [10]), ('switch', ['inactive'])],
+                [('timestamp', '2022-01-01T18:05:00.000Z'), ('sensor', [65]), ('switch', ['inactive'])]]
+        point = []
+
+        self.assertEqual(point, self.automation.find_point(logs))
+
+    # test whether cluster_log() functions w/o error
+    def test_cluster_log(self):
         logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
                 [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
                 [('timestamp', '2022-01-01T18:00:00.000Z')]]
 
-        ret = self.automation.cluster_log(logs)[0]
+        ret = self.automation.cluster_log(logs)
 
         self.assertEqual(1, len(ret))
         self.assertEqual([("time", "18:00")], ret[0])
-
-    # log with outlier
-    def test_cluster_time2(self):
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:05:00.000Z')],
-                [('timestamp', '2022-01-01T17:57:00.000Z')], [('timestamp', '2022-01-01T18:03:00.000Z')],
-                [('timestamp', '2022-01-01T18:05:00.000Z')], [('timestamp', '2022-01-01T17:55:00.000Z')],
-                [('timestamp', '2022-01-01T18:03:00.000Z')], [('timestamp', '2022-01-01T12:00:00.000Z')]]
-
-        self.assertEqual([("time", "18:00")], self.automation.cluster_log(logs)[0])
-
-    # processing time field
-    def test_cluster_time3(self):
-        logs = [[('timestamp', '2022-01-01T23:50:00.000Z')], [('timestamp', '2022-01-01T23:55:00.000Z')],
-                [('timestamp', '2022-01-01T00:00:00.000Z')], [('timestamp', '2022-01-01T00:03:00.000Z')],
-                [('timestamp', '2022-01-01T23:45:00.000Z')], [('timestamp', '2022-01-01T00:05:00.000Z')],
-                [('timestamp', '2022-01-01T12:00:00.000Z')]]
-
-        self.assertEqual([("time", "00:00")], self.automation.cluster_log(logs)[0])
-
-    # log with integer value
-    def test_cluster_int(self):
-        logs = [[('timestamp', '2022-01-01T00:00:00.000Z'), ('my-sensor', [72])],
-                [('timestamp', '2022-01-01T02:05:00.000Z'), ('my-sensor', [70])],
-                [('timestamp', '2022-01-01T04:57:00.000Z'), ('my-sensor', [74])],
-                [('timestamp', '2022-01-01T06:03:00.000Z'), ('my-sensor', [70])],
-                [('timestamp', '2022-01-01T08:05:00.000Z'), ('my-sensor', [74])],
-                [('timestamp', '2022-01-01T10:57:00.000Z'), ('my-sensor', [72])],
-                [('timestamp', '2022-01-01T12:03:00.000Z'), ('my-sensor', [70])],
-                [('timestamp', '2022-01-01T14:00:00.000Z'), ('my-sensor', [74])]]
-
-        self.assertEqual([("my-sensor", [70])], self.automation.cluster_log(logs)[0])
-
-    # log with string value
-    def test_cluster_string(self):
-        logs = [[('timestamp', '2022-01-01T00:00:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T02:05:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T04:77:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T06:03:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T08:05:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T10:77:00.000Z'), ('my-sensor', ['inactive'])]]
-
-        self.assertEqual([("my-sensor", ['active'])], self.automation.cluster_log(logs)[0])
-
-    # multiple cluster
-    def test_multiple_cluster(self):
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:05:00.000Z')],
-                [('timestamp', '2022-01-01T18:05:00.000Z')], [('timestamp', '2022-01-01T17:55:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:05:00.000Z')],
-                [('timestamp', '2022-01-01T12:05:00.000Z')], [('timestamp', '2022-01-01T11:55:00.000Z')],
-                [('timestamp', '2022-01-01T12:00:00.000Z')], [('timestamp', '2022-01-01T12:05:00.000Z')],
-                [('timestamp', '2022-01-01T12:05:00.000Z')], [('timestamp', '2022-01-01T11:55:00.000Z')]]
-
-        self.assertEqual([[("time", "18:00")], [("time", "12:00")]],
-                         self.automation.cluster_log(logs))
-
-    # cannot find cluster
-    def test_no_cluster(self):
-        logs = [[('timestamp', '2022-01-01T00:00:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T02:05:00.000Z'), ('my-sensor', ['inactive'])],
-                [('timestamp', '2022-01-01T04:77:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T06:03:00.000Z'), ('my-sensor', ['inactive'])],
-                [('timestamp', '2022-01-01T08:05:00.000Z'), ('my-sensor', ['active'])],
-                [('timestamp', '2022-01-01T10:77:00.000Z'), ('my-sensor', ['inactive'])]]
-
-        self.assertEqual([], self.automation.cluster_log(logs))
