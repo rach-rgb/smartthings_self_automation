@@ -22,15 +22,39 @@ class SelfAutomation:
             self.weight = [param['wtime'], param['wint'], param['wstr']]
             self.thld = [param['ttime'], param['tint'], param['tstr']]
 
-    # return self-generated rules
-    def generate_rule(self, file_in):
+    # save self-generated rules at director file_out_dir
+    def run(self, file_in, file_out):
         info = self.read_log(file_in)
         log_cmd = self.cls_log(info['history'])
         for cmd in log_cmd.keys():
-            log_rep = self.cluster_log(log_cmd[cmd])
+            logs = self.cluster_log(log_cmd[cmd])
 
             # build rules from representative rules
-            # TODO
+            log_dict = {}
+            assert (len(logs) == 1)
+            assert(len(logs[0]) == 1)
+
+
+
+            # TODO: impl when len(log_rep) is not 1
+
+    # create name of rule
+    @staticmethod
+    def get_name(cur_device, n_devices, cmd):
+        name = cur_device
+        for n in n_devices:
+            name = name + '-' + n
+        name = name + '-' + cmd
+        return name
+
+    # create result of rule('then' part)
+    @staticmethod
+    def get_result(cur_device, cap, cmd):
+        print(None)
+
+    def generate(self):
+        print(None)
+
 
     # metric function for DBSCAN
     def __dist__(self, a, b, log):
@@ -65,8 +89,8 @@ class SelfAutomation:
 
     # find representative point of cluster
     def find_point(self, cluster):
-        assert(len(cluster) > 0)
-        assert(cluster[0][0][0] == 'timestamp')  # first attribute is always timestamp
+        assert (len(cluster) > 0)
+        assert (cluster[0][0][0] == 'timestamp')  # first attribute is always timestamp
 
         data = self.logs_to_dict(cluster)
 
@@ -74,13 +98,13 @@ class SelfAutomation:
         ret = {}
         for k, v in data.items():
             if k == "timestamp":
-                avg, var = self.avg_time(v)
+                avg, var, end = self.avg_time(v)
                 if var <= self.thld[0]:
-                    ret['time'] = avg
+                    ret['time'] = (avg, end)
             elif type(v[0]) is int:
-                avg, var = self.avg_int(v)
+                avg, var, med = self.avg_int(v)
                 if var <= self.thld[1]:
-                    ret[k] = avg
+                    ret[k] = (avg, med)
             elif type(v[0]) is str:
                 avg, rat = self.avg_str(v)
                 if rat >= self.thld[2]:
@@ -92,7 +116,8 @@ class SelfAutomation:
     def cluster_log(self, logs):
         x = np.arange(len(logs)).reshape(-1, 1)
 
-        dbscan = DBSCAN(eps=self.eps, min_samples=self.min_samples, metric=self.__dist__, metric_params={'log': logs}).fit(x)
+        dbscan = DBSCAN(eps=self.eps, min_samples=self.min_samples, metric=self.__dist__,
+                        metric_params={'log': logs}).fit(x)
         label = dbscan.labels_
 
         n_clusters_ = len(set(label)) - (1 if -1 in label else 0)
@@ -192,6 +217,13 @@ class SelfAutomation:
     # modify source from: https://rosettacode.org/wiki/Averages/Mean_time_of_day#Python
     @staticmethod
     def avg_time(logs):
+        def ang_to_min(angle):
+            day = 24 * 60
+            minute = angle * day / 360
+            if minute < 0:
+                minute += day
+            return divmod(minute, 60)
+
         frmt = '%H:%M'
         dts = [datetime.strptime(lg[11:16], frmt) for lg in logs]
         minutes = [dt.hour * 60 + dt.minute for dt in dts]
@@ -203,12 +235,16 @@ class SelfAutomation:
         mean_angle = circmean(angles).value
         var = circvar(angles).value  # use angular variance
 
-        mean_seconds = mean_angle * day / 360.
-        if mean_seconds < 0:
-            mean_seconds += day
-        h, m = divmod(mean_seconds, 60)
+        # mean_min = mean_angle * day / 360.
+        # if mean_min < 0:
+        #     mean_min += day
+        # h, m = divmod(mean_min, 60)
 
-        return '%02i:%02i' % (h, m), var
+        mean_t = '%02i:%02i' % ang_to_min(mean_angle)
+        min_t = '%02i:%02i' % ang_to_min(min(angles).value)
+        max_t = '%02i:%02i' % ang_to_min(max(angles).value)
+
+        return mean_t, var, (min_t, max_t)
 
     # return mode of string type values and ratio
     # assume two possible state
@@ -221,4 +257,4 @@ class SelfAutomation:
     # return mean and variance of integer type values
     @staticmethod
     def avg_int(logs):
-        return np.mean(logs), np.var(logs)
+        return np.mean(logs), np.var(logs), np.median(logs)

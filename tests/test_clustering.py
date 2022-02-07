@@ -71,49 +71,66 @@ class TestClustering(unittest.TestCase):
 
     # find representative value of time attribute
     def test_avg_time(self):
-        rep, var = SelfAutomation.avg_time(
+        rep, var, _ = SelfAutomation.avg_time(
             ['2022-01-01T18:00:00.000Z', '2022-01-01T18:00:00.000Z', '2022-01-01T18:00:00.000Z'])
         self.assertEqual('18:00', rep)
         self.assertEqual(0, round(var, 3))
 
-        rep, var = SelfAutomation.avg_time(
+        rep, var, _ = SelfAutomation.avg_time(
             ['2022-01-01T12:00:00.000Z', '2022-01-01T00:00:00.000Z'])
         self.assertEqual('06:00', rep)
         self.assertEqual(1, round(var, 3))
 
         # 00:00 case
-        rep, var = SelfAutomation.avg_time(
+        rep, var, _ = SelfAutomation.avg_time(
             ['2022-01-01T23:55:00.000Z', '2022-01-01T00:00:00.000Z', '2022-01-01T00:05:00.000Z'])
         self.assertEqual('00:00', rep)
 
         # small variance
-        rep, var = SelfAutomation.avg_time(
+        rep, var, _ = SelfAutomation.avg_time(
             ['2022-01-01T17:50:00.000Z', '2022-01-01T17:55:00.000Z', '2022-01-01T18:00:00.000Z',
              '2022-01-01T18:05:00.000Z', '2022-01-01T18:10:00.000Z'])
         self.assertEqual('18:00', rep)
         self.assertGreater(0.2, var)
 
         # large variance
-        rep, var = SelfAutomation.avg_time(
+        rep, var, _ = SelfAutomation.avg_time(
             ['2022-01-01T14:00:00.000Z', '2022-01-01T16:00:00.000Z', '2022-01-01T18:00:00.000Z',
              '2022-01-01T20:00:00.000Z', '2022-01-01T22:00:00.000Z'])
         self.assertEqual('18:00', rep)
         self.assertLess(0.2, var)
 
+        # return min and max value
+        rep, var, end = SelfAutomation.avg_time(
+            ['2022-01-01T17:50:00.000Z', '2022-01-01T17:55:00.000Z', '2022-01-01T18:00:00.000Z',
+             '2022-01-01T18:05:00.000Z', '2022-01-01T18:10:00.000Z'])
+        self.assertEqual('18:00', rep)
+        self.assertEqual('17:50', end[0])
+        self.assertEqual('18:10', end[1])
+
     def test_avg_int(self):
-        rep, var = SelfAutomation.avg_int([10, 10, 10])
+        rep, var, _ = SelfAutomation.avg_int([10, 10, 10])
         self.assertEqual(10, rep)
         self.assertEqual(0, var)
 
         # large variance
-        rep, var = SelfAutomation.avg_int([10, 10, 100, 0])
+        rep, var, _ = SelfAutomation.avg_int([10, 10, 100, 0])
         self.assertEqual(30, rep)
         self.assertEqual(1650, var)
 
         # small variance
-        rep, var = SelfAutomation.avg_int([55, 60, 60, 65])
+        rep, var, _ = SelfAutomation.avg_int([55, 60, 60, 65])
         self.assertEqual(60, rep)
         self.assertEqual(12.5, var)
+
+        # return median as 3rd value
+        rep, var, med = SelfAutomation.avg_int([25, 30, 36])
+        self.assertEqual(med, 30)
+        self.assertGreater(rep, med)  # mean is larger than median
+
+        rep, var, med = SelfAutomation.avg_int([24, 30, 35])
+        self.assertEqual(med, 30)
+        self.assertLess(rep, med)  # mean is smaller than median
 
     def test_avg_str(self):
         # large ratio
@@ -133,7 +150,7 @@ class TestClustering(unittest.TestCase):
                 [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
                 [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
                 [('timestamp', '2022-01-01T18:05:00.000Z'), ('sensor', [65]), ('switch', ['inactive'])]]
-        point = [('time', '18:00'), ('sensor', [60]), ('switch', ['active'])]
+        point = [('time', ('18:00', ('17:55', '18:05'))), ('sensor', [(60, 60)]), ('switch', ['active'])]
 
         self.assertEqual(point, self.automation.find_point(logs))
 
@@ -156,4 +173,4 @@ class TestClustering(unittest.TestCase):
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual(1, len(ret))
-        self.assertEqual([("time", "18:00")], ret[0])
+        self.assertEqual([("time", ('18:00', ('18:00', '18:00')))], ret[0])
