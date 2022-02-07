@@ -66,7 +66,7 @@ class SelfAutomation:
     # find representative point of cluster
     def find_point(self, cluster):
         assert(len(cluster) > 0)
-        assert(cluster[0][0][0] is 'timestamp')  # first attribute is always timestamp
+        assert(cluster[0][0][0] == 'timestamp')  # first attribute is always timestamp
 
         data = self.logs_to_dict(cluster)
 
@@ -130,7 +130,7 @@ class SelfAutomation:
             cmd = lg['command']
 
             # exclude value of 'command' from list
-            lg_list = list(i for i in lg.items() if i[0] is not 'command')
+            lg_list = list(i for i in lg.items() if i[0] != 'command')
 
             if cmd in log_dict:
                 log_dict[cmd].append(lg_list)
