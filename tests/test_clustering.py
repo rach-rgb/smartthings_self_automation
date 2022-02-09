@@ -150,7 +150,7 @@ class TestClustering(unittest.TestCase):
                 [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
                 [('timestamp', '2022-01-01T18:00:00.000Z'), ('sensor', [60]), ('switch', ['active'])],
                 [('timestamp', '2022-01-01T18:05:00.000Z'), ('sensor', [65]), ('switch', ['inactive'])]]
-        point = [('time', ('18:00', ('17:55', '18:05'))), ('sensor', [(60, 60)]), ('switch', ['active'])]
+        point = [('time', ('18:00', ('17:55', '18:05'))), ('sensor:0', (60, 60)), ('switch:0', 'active')]
 
         self.assertEqual(point, self.automation.find_point(logs))
 

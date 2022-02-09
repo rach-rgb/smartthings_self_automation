@@ -23,38 +23,121 @@ class SelfAutomation:
             self.thld = [param['ttime'], param['tint'], param['tstr']]
 
     # save self-generated rules at director file_out_dir
-    def run(self, file_in, file_out):
+    def run(self, file_in, dir_out):
         info = self.read_log(file_in)
         log_cmd = self.cls_log(info['history'])
         for cmd in log_cmd.keys():
             logs = self.cluster_log(log_cmd[cmd])
 
             # build rules from representative rules
-            log_dict = {}
-            assert (len(logs) == 1)
-            assert(len(logs[0]) == 1)
+            if len(logs) == 0:
+                print("No rule is detected")
+            for idx, log in enumerate(logs):
+                rule = self.generate_rule(info, log, cmd)
 
+                with open(dir_out+'/'+rule['name']+str(idx)+'.json', 'w') as f:
+                    json.dump(rule, f)
 
+    # return rule built from info and logs
+    def generate_rule(self, info, log, cmd):
+        # create name of rule
+        n_dict = {n['device']: n for n in info['neighbors']}
 
-            # TODO: impl when len(log_rep) is not 1
+        name = self.construct_name(info['device'], n_dict.keys(), cmd)
 
-    # create name of rule
+        # create result part of rule
+        result = self.construct_result(info['device'], info['capability'], cmd)
+
+        # create rule
+        # construct EveryAction if there's only a time query
+        if len(log) == 1 and log[0][0] == 'time':
+            action = self.construct_EveryAction(log[0], result)
+        else:
+            action = self.construct_IfAction(log, n_dict, result)
+
+        rule = {'name': name, 'actions': [action]}
+
+        return rule
+
+    # return name of rule
     @staticmethod
-    def get_name(cur_device, n_devices, cmd):
+    def construct_name(cur_device, n_devices, cmd):
         name = cur_device
         for n in n_devices:
             name = name + '-' + n
         name = name + '-' + cmd
         return name
 
-    # create result of rule('then' part)
+    # return result of rule('then' part)
     @staticmethod
-    def get_result(cur_device, cap, cmd):
-        print(None)
+    def construct_result(cur_device, cap, cmd):
+        action = [{'command': {"devices": [cur_device], 'commands':[{'capability': cap, 'command': cmd}]}}]
+        return action
 
-    def generate(self):
-        print(None)
+    # return condition of rule with IfAction format
+    def construct_IfAction(self, queries, devices, result):
+        operations = []
+        for q in queries:
+            if q[0] == 'time':
+                operations.append(self.time_operation(q))
+            else:
+                info = q[0].split(':')
+                name = info[0]
+                num = int(info[1])
+                attr = devices[name]['value'][num]['attribute']
+                if type(q[1]) == str:
+                    operations.append(self.string_operation(q, attr))
+                else:  # string
+                    operations.append(self.integer_operation(q, attr))
 
+        if len(operations) == 1:
+            operations[0]['then'] = result
+            ret = {'if': operations[0]}
+        else:
+            ret = {'if': {'and': []}}
+            for op in operations:
+                ret['if']['and'].append(op)
+            ret['if']['then'] = result
+
+        return ret
+
+    # return condition of rule with EveryAction format
+    # used for time condition
+    @staticmethod
+    def construct_EveryAction(time_query, result):
+        hour = time_query[1][0][0:2]
+        minute = time_query[1][0][3:5]
+
+        operation = {'time': {'hour': hour, 'minute': minute}}
+        return {'every': {'specific': operation, 'actions': result}}
+
+    @staticmethod
+    def time_operation(query):
+        start_h = query[1][1][0][0:2]
+        start_m = query[1][1][0][3:5]
+        end_h = query[1][1][1][0:2]
+        end_m = query[1][1][1][3:5]
+        operation = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': start_h,
+                    'minute': start_m}}, 'end': {'time': {'hour': end_h, 'minute': end_m}}}}
+
+        return operation
+
+    @staticmethod
+    def integer_operation(query, attr):
+        if query[1][0] < query[1][1]:
+            op = 'greater_than'
+        else:
+            op = 'less_than'
+        operation = {op: {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},
+                          "right": {"integer": query[1][0]}}}
+
+        return operation
+
+    @staticmethod
+    def string_operation(query, attr):
+        operation = {"equals": {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},
+                                "right": {"string": query[1]}}}
+        return operation
 
     # metric function for DBSCAN
     def __dist__(self, a, b, log):
@@ -110,7 +193,11 @@ class SelfAutomation:
                 if rat >= self.thld[2]:
                     ret[k] = avg
 
-        return self.dict_to_log(ret)
+        # return self.dict_to_log(ret)
+        ret_list = []
+        for k, v in ret.items():
+            ret_list.append((k, v))
+        return ret_list
 
     # pick representative logs
     def cluster_log(self, logs):
