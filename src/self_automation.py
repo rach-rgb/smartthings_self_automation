@@ -10,7 +10,7 @@ from astropy.stats.circstats import circmean, circvar
 # generate rule and mode from logs
 class SelfAutomation:
     # set hyper parameters
-    def __init__(self, input_dir, param=None):
+    def __init__(self, input_dir='./logs/', param=None):
         self.input_dir = input_dir
         if param is None:
             self.eps = 720
@@ -43,7 +43,7 @@ class SelfAutomation:
                     file_out = file_in.split('.')[0] + '_' + cmd + str(idx) + '_rule.json'
                 results.append(file_out)
 
-                with open(dir_out + '/' + file_out, 'w') as f:
+                with open(dir_out + file_out, 'w') as f:
                     json.dump(rule, f)
 
         return results
@@ -115,18 +115,18 @@ class SelfAutomation:
     # used for time condition
     @staticmethod
     def construct_EveryAction(time_query, result):
-        hour = time_query[1][0][0:2]
-        minute = time_query[1][0][3:5]
+        hour = int(time_query[1][0][0:2])
+        minute = int(time_query[1][0][3:5])
 
         operation = {'time': {'hour': hour, 'minute': minute}}
         return {'every': {'specific': operation, 'actions': result}}
 
     @staticmethod
     def time_operation(query):
-        start_h = query[1][1][0][0:2]
-        start_m = query[1][1][0][3:5]
-        end_h = query[1][1][1][0:2]
-        end_m = query[1][1][1][3:5]
+        start_h = int(query[1][1][0][0:2])
+        start_m = int(query[1][1][0][3:5])
+        end_h = int(query[1][1][1][0:2])
+        end_m = int(query[1][1][1][3:5])
         operation = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': start_h,
                                                                                              'minute': start_m}},
                                  'end': {'time': {'hour': end_h, 'minute': end_m}}}}
@@ -332,11 +332,6 @@ class SelfAutomation:
 
         mean_angle = circmean(angles).value
         var = circvar(angles).value  # use angular variance
-
-        # mean_min = mean_angle * day / 360.
-        # if mean_min < 0:
-        #     mean_min += day
-        # h, m = divmod(mean_min, 60)
 
         mean_t = '%02i:%02i' % ang_to_min(mean_angle)
         min_t = '%02i:%02i' % ang_to_min(min(angles).value)

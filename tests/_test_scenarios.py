@@ -27,11 +27,11 @@ class TestScenario:
 
                 if expect == result:
                     if verbose:
-                        print('rule ', r, ' is correct')
+                        print('[correct] ', r)
                     correct = correct + 1
                 else:
                     if verbose:
-                        print('rule ', r, ' is failed')
+                        print('[fail] ', r)
 
             total = total + len(rets)
 

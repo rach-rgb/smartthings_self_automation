@@ -41,8 +41,8 @@ class TestRuleGenerating(unittest.TestCase):
 
     def test_time_operation(self):
         query = ('time', ('18:00', ('17:50', '18:10')))
-        expect = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': '17', 'minute': '50'}}
-                    , 'end': {'time': {'hour': '18', 'minute': '10'}}}}
+        expect = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': 17, 'minute': 50}}
+                    , 'end': {'time': {'hour': 18, 'minute': 10}}}}
 
         self.assertEqual(expect, SelfAutomation.time_operation(query))
 
@@ -102,7 +102,7 @@ class TestRuleGenerating(unittest.TestCase):
                 {"equals": {"left": {"device": {"devices": ["my-device"], "attribute": "motion2"}},
                             "right": {"string": 'active'}}},
                 {'between': {'value': {'time': {'reference': 'Now'}},
-                'start': {'time': {'hour': '17', 'minute': '50'}}, 'end': {'time': {'hour': '18', 'minute': '10'}}}}],
+                'start': {'time': {'hour': 17, 'minute': 50}}, 'end': {'time': {'hour': 18, 'minute': 10}}}}],
                          'then': result}}
 
         self.assertEqual(expect, self.automation.construct_IfAction(queries, devices, result))
