@@ -10,11 +10,12 @@ from astropy.stats.circstats import circmean, circvar
 # generate rule and mode from logs
 class SelfAutomation:
     # set hyper parameters
-    def __init__(self, param=None):
+    def __init__(self, input_dir, param=None):
+        self.input_dir = input_dir
         if param is None:
-            self.eps = 0.5
-            self.min_samples = 3
-            self.weight = [1, 1, 1]  # weight for time, integer, string attributes in order
+            self.eps = 720
+            self.min_samples = 1
+            self.weight = [1, 3, 180]  # weight for time, integer, string attributes in order
             self.thld = [0.001, 15, 0.8]  # threshold for time, integer, string attributes in order
         else:
             self.eps = param['eps']
@@ -24,8 +25,9 @@ class SelfAutomation:
 
     # save self-generated rules at director file_out_dir
     def run(self, file_in, dir_out):
-        info = self.read_log(file_in)
+        info = self.read_log(self.input_dir + file_in)
         log_cmd = self.cls_log(info['history'])
+        results = []
         for cmd in log_cmd.keys():
             logs = self.cluster_log(log_cmd[cmd])
 
@@ -35,8 +37,16 @@ class SelfAutomation:
             for idx, log in enumerate(logs):
                 rule = self.generate_rule(info, log, cmd)
 
-                with open(dir_out+'/'+rule['name']+str(idx)+'.json', 'w') as f:
+                if len(logs) == 1:
+                    file_out = file_in.split('.')[0] + '_' + cmd + '_rule.json'
+                else:
+                    file_out = file_in.split('.')[0] + '_' + cmd + str(idx) + '_rule.json'
+                results.append(file_out)
+
+                with open(dir_out + '/' + file_out, 'w') as f:
                     json.dump(rule, f)
+
+        return results
 
     # return rule built from info and logs
     def generate_rule(self, info, log, cmd):
@@ -71,7 +81,7 @@ class SelfAutomation:
     # return result of rule('then' part)
     @staticmethod
     def construct_result(cur_device, cap, cmd):
-        action = [{'command': {"devices": [cur_device], 'commands':[{'capability': cap, 'command': cmd}]}}]
+        action = [{'command': {"devices": [cur_device], 'commands': [{'capability': cap, 'command': cmd}]}}]
         return action
 
     # return condition of rule with IfAction format
@@ -118,7 +128,8 @@ class SelfAutomation:
         end_h = query[1][1][1][0:2]
         end_m = query[1][1][1][3:5]
         operation = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': start_h,
-                    'minute': start_m}}, 'end': {'time': {'hour': end_h, 'minute': end_m}}}}
+                                                                                             'minute': start_m}},
+                                 'end': {'time': {'hour': end_h, 'minute': end_m}}}}
 
         return operation
 
