@@ -83,3 +83,17 @@ class TestSelfAutomation(unittest.TestCase):
         log = [('sensor', [50, 60, 70])]
         self.assertEqual(log, self.automation.dict_to_log(data))
 
+    def test_is_time(self):
+        func = SelfAutomation.is_time
+        self.assertTrue(func(('timestamp', '2022-01-01T01:00:00.000Z')))
+        self.assertTrue(func(('time', '18:00')))
+        self.assertTrue(func(('time', 0)))
+        self.assertFalse(func(('sensor', 50)))
+
+    def test_is_int(self):
+        func = SelfAutomation.is_int
+        self.assertTrue(func(('sensor', 50)))
+        self.assertFalse(func(('sensor', 'active')))
+        # returns true if time point represent time as angle
+        self.assertTrue((func(('time', 180))))
+

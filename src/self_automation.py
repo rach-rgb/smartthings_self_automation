@@ -23,6 +23,10 @@ class SelfAutomation:
             self.weight = [param['wtime'], param['wint'], param['wstr']]
             self.thld = [param['ttime'], param['tint'], param['tstr']]
 
+        self.minsup = 3     # minimum support
+        self.time_err = 3.75    # acceptable time error(15 minute) as angle
+        self.int_err = 5
+
     # save self-generated rules at director file_out_dir
     def run(self, file_in, dir_out):
         info = self.read_log(self.input_dir + file_in)
@@ -97,7 +101,7 @@ class SelfAutomation:
                 attr = devices[name]['value'][num]['attribute']
                 if type(q[1]) == str:
                     operations.append(self.string_operation(q, attr))
-                else:  # string
+                else:  # integer
                     operations.append(self.integer_operation(q, attr))
 
         if len(operations) == 1:
@@ -232,6 +236,53 @@ class SelfAutomation:
 
         return ret
 
+    # pick representative logs based on A priori algorithm
+    def cluster_log2(self, logs):
+        print(None)  # TODO: impl
+
+    # return dense 1-region
+    def get_dense_region(self, logs):
+        regions = {}
+
+        for log in logs:
+            for point in log:
+                interval = self.get_interval(point)
+                for v in interval:
+                    if v in regions:
+                        regions[v] = regions[v] + 1
+                    else:
+                        regions[v] = 1
+
+        for k in list(regions.keys()):
+            if regions[k] < self.minsup:
+                del regions[k]
+
+        return regions
+
+    # return candidate cluster
+    def get_candidate_cluster(self, log):
+        print(None)  # TODO: impl
+
+    # returns acceptable region
+    def get_interval(self, point):
+        if self.is_time(point):
+            time = self.time_to_ang(point[1])
+            start = round((time - self.time_err) % 360)
+            end = round((time + self.time_err) % 360)
+            if start <= end:
+                region = [('time', x) for x in range(start, end + 1)]
+            else:
+                region = [('time', x) for x in range(start, 360)]
+                region = region + [('time', x) for x in range(0, end + 1)]
+        elif self.is_int(point):
+            start = point[1] - self.int_err
+            end = point[1] + self.int_err
+            region = [(point[0], x) for x in range(start, end + 1)]
+        else:   # when point has string value
+            region = [(point[0], point[1])]
+
+        return region
+
     # static methods
     # return a usage log as a dictionary
     @staticmethod
@@ -351,3 +402,22 @@ class SelfAutomation:
     @staticmethod
     def avg_int(logs):
         return np.mean(logs), np.var(logs), np.median(logs)
+
+    # convert string type timestamp to angle
+    @staticmethod
+    def time_to_ang(log):
+        frmt = '%H:%M'
+        dt = datetime.strptime(log[11:16], frmt)
+        minute = dt.hour * 60 + dt.minute
+
+        return minute / 4
+
+    # return true if point represents time attribute
+    @staticmethod
+    def is_time(point):
+        return (point[0] == 'timestamp') or (point[0] == 'time')
+
+    # return true if point has integer type value
+    @staticmethod
+    def is_int(point):
+        return type(point[1]) == int
