@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from datetime import datetime
+from itertools import product
 from collections import Counter
 from sklearn.cluster import DBSCAN
 from astropy import units as u
@@ -240,22 +241,35 @@ class SelfAutomation:
     def cluster_log2(self, logs):
         one_region = list(self.get_dense_region(logs))
 
-        candidates = {}
+        cand_dict = {}
         for log in logs:
-            max_region = tuple(self.get_candidate_cluster(one_region, log))
-            if max_region in candidates:
-                candidates[max_region] = candidates[max_region] + 1
-            else:
-                candidates[max_region] = 1
+            attributes = [self.get_interval(attr) for attr in log]
+            full_logs = list(product(*attributes))
 
-        for k in list(candidates.keys()):
-            if candidates[k] < self.minsup:
-                del candidates[k]
-            elif self.is_time(k[0]):
-                candidates[('time', self.ang_to_min(k[0][1]))] = 1
-                del candidates[k]
+            cands = [self.get_candidate_cluster(one_region, lg) for lg in full_logs]
+            for c in cands:
+                key = tuple(c)
+                if key in cand_dict:
+                    cand_dict[key] = cand_dict[key] + 0.5
+                elif key is not ():
+                    cand_dict[key] = 0.5
 
-        return list(candidates.keys())
+        for key in list(cand_dict.keys()):
+            if cand_dict[key] < self.minsup:
+                del cand_dict[key]
+
+            attributes = [self.get_interval(attr) for attr in key]
+            for near_key in list(product(*attributes)):
+                if (near_key in cand_dict) and (cand_dict[key] < cand_dict[near_key]):
+                    del cand_dict[key]
+                    break
+
+        clusters = list(cand_dict.keys())
+        for cluster in clusters:
+            if self.is_time(cluster[0]):
+                cluster[0][1] = self.ang_to_min(cluster[0][1])  # change angular representation to str
+
+        return list(cand_dict.keys())
 
     # return dense 1-region dictionary
     def get_dense_region(self, logs):
@@ -266,10 +280,9 @@ class SelfAutomation:
                 interval = self.get_interval(point)
                 for v in interval:
                     if v in regions:
-                        regions[v] = regions[v] + 1
+                        regions[v] = regions[v] + 0.5
                     else:
-                        regions[v] = 1
-
+                        regions[v] = 0.5
         for k in list(regions.keys()):
             if regions[k] < self.minsup:
                 del regions[k]
@@ -277,21 +290,21 @@ class SelfAutomation:
         return regions
 
     # return candidate cluster
+    # time attribute has angle form
     def get_candidate_cluster(self, regions, log):
         candidate = []
         for point in log:
-            if self.is_time(point):
-                new_point = ('time', self.time_to_ang(point[1]))
-                if new_point in regions:
-                    candidate.append(new_point)
-            elif point in regions:
+            if point in regions:
                 candidate.append(point)
         return candidate
 
     # returns acceptable region
     def get_interval(self, point):
         if self.is_time(point):
-            time = self.time_to_ang(point[1])
+            if type(point[1]) is str:
+                time = self.time_to_ang(point[1])
+            else:
+                time = point[1]
             start = round((time - self.time_err) % 360)
             end = round((time + self.time_err) % 360)
             if start <= end:
@@ -299,12 +312,14 @@ class SelfAutomation:
             else:
                 region = [('time', x) for x in range(start, 360)]
                 region = region + [('time', x) for x in range(0, end + 1)]
+            region.append(('time', round(time)))
         elif self.is_int(point):
             start = point[1] - self.int_err
             end = point[1] + self.int_err
             region = [(point[0], x) for x in range(start, end + 1)]
+            region.append(point)
         else:   # when point has string value
-            region = [(point[0], point[1])]
+            region = [point, point]
 
         return region
 
