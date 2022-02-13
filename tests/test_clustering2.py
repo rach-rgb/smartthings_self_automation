@@ -10,7 +10,12 @@ class TestRuleGenerating(unittest.TestCase):
         self.automation = SelfAutomation()
 
     def test_cluster_log2(self):
-        self.assertTrue(1)
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')]]
+        ret = self.automation.cluster_log2(logs)
+
+        self.assertEqual([(('time', '18:00'))], ret)
 
     def test_get_dense_region(self):
         # process timestamp attribute
@@ -54,7 +59,23 @@ class TestRuleGenerating(unittest.TestCase):
         self.assertEqual(3, ret[('sen', 'active')])
 
     def test_get_candidate_cluster(self):
-        self.assertTrue(1)
+        func = self.automation.get_candidate_cluster
+
+        regions = [('time', 180), ('sensor', 'active'), ('dev', 50)]
+
+        self.assertEqual([('time', 180)], func(regions, [('timestamp', '2022-01-01T12:00:00.000Z')]))
+        # no candidate cluster
+        self.assertEqual([], func(regions, [('timestamp', '2022-01-01T00:00:00.000Z')]))
+        # get maximal cluster
+        log = [('timestamp', '2022-01-01T12:00:00.000Z'), ('sensor', 'active'), ('dev', 30)]
+        self.assertEqual([('time', 180), ('sensor', 'active')], func(regions, log))
+
+    def test_ang_to_min(self):
+        func = self.automation.ang_to_min
+
+        self.assertEqual("00:00", func(0))
+        self.assertEqual("12:00", func(180))
+        self.assertEqual("00:00", func(360))
 
     def test_time_to_ang(self):
         func = self.automation.time_to_ang
@@ -87,3 +108,4 @@ class TestRuleGenerating(unittest.TestCase):
 
         # point has string value
         self.assertEqual([('dev', 'active')], func(('dev', 'active')))
+

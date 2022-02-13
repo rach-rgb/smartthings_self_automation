@@ -236,11 +236,28 @@ class SelfAutomation:
 
         return ret
 
-    # pick representative logs based on A priori algorithm
+    # pick representative logs based on Apriori algorithm
     def cluster_log2(self, logs):
-        print(None)  # TODO: impl
+        one_region = list(self.get_dense_region(logs))
 
-    # return dense 1-region
+        candidates = {}
+        for log in logs:
+            max_region = tuple(self.get_candidate_cluster(one_region, log))
+            if max_region in candidates:
+                candidates[max_region] = candidates[max_region] + 1
+            else:
+                candidates[max_region] = 1
+
+        for k in list(candidates.keys()):
+            if candidates[k] < self.minsup:
+                del candidates[k]
+            elif self.is_time(k[0]):
+                candidates[('time', self.ang_to_min(k[0][1]))] = 1
+                del candidates[k]
+
+        return list(candidates.keys())
+
+    # return dense 1-region dictionary
     def get_dense_region(self, logs):
         regions = {}
 
@@ -260,8 +277,16 @@ class SelfAutomation:
         return regions
 
     # return candidate cluster
-    def get_candidate_cluster(self, log):
-        print(None)  # TODO: impl
+    def get_candidate_cluster(self, regions, log):
+        candidate = []
+        for point in log:
+            if self.is_time(point):
+                new_point = ('time', self.time_to_ang(point[1]))
+                if new_point in regions:
+                    candidate.append(new_point)
+            elif point in regions:
+                candidate.append(point)
+        return candidate
 
     # returns acceptable region
     def get_interval(self, point):
@@ -402,6 +427,15 @@ class SelfAutomation:
     @staticmethod
     def avg_int(logs):
         return np.mean(logs), np.var(logs), np.median(logs)
+
+    # convert angle as string type time
+    @staticmethod
+    def ang_to_min(angle):
+        day = 24 * 60
+        minute = angle * 4
+        if minute >= day:
+            minute -= day
+        return '%02i:%02i' % divmod(minute, 60)
 
     # convert string type timestamp to angle
     @staticmethod
