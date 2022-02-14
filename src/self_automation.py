@@ -2,243 +2,151 @@ import json
 import numpy as np
 from datetime import datetime
 from itertools import product
-from collections import Counter
-from sklearn.cluster import DBSCAN
 from astropy import units as u
-from astropy.stats.circstats import circmean, circvar
 
 
 # generate rule and mode from logs
 class SelfAutomation:
-    # set hyper parameters
     def __init__(self, input_dir='./logs/', param=None):
+        # set log directory and hyperparameters
         self.input_dir = input_dir
         if param is None:
-            self.eps = 720
-            self.min_samples = 1
-            self.weight = [1, 3, 180]  # weight for time, integer, string attributes in order
-            self.thld = [0.001, 15, 0.8]  # threshold for time, integer, string attributes in order
+            self.min_sup = 3     # minimum support
+            self.time_err = 3.75    # acceptable error of time attribute as an angle, equivalent to 15 minutes
+            self.int_err = 5    # acceptable error of integer attribute
         else:
-            self.eps = param['eps']
-            self.min_samples = param['min_samples']
-            self.weight = [param['wtime'], param['wint'], param['wstr']]
-            self.thld = [param['ttime'], param['tint'], param['tstr']]
+            self.min_sup = param['min_sup']
+            self.time_err = param['time_err']
+            self.int_err = param['int_err']
 
-        self.minsup = 3     # minimum support
-        self.time_err = 3.75    # acceptable time error(15 minute) as angle
-        self.int_err = 5
-
-    # save self-generated rules at director file_out_dir
+    # export self-generated rules and return file names of exported rules as a list
+    # file_in: directory to read logs, dir_out: directory to save generated rules
     def run(self, file_in, dir_out):
-        info = self.read_log(self.input_dir + file_in)
-        log_cmd = self.cls_log(info['history'])
-        results = []
-        for cmd in log_cmd.keys():
-            logs = self.cluster_log(log_cmd[cmd])
+        data = self.read_log(self.input_dir + file_in)
+        log_cls_cmd = self.cls_log(data['history'])
 
-            # build rules from representative rules
-            if len(logs) == 0:
+        file_names = []
+
+        # generate rules for each device command
+        for cmd in log_cls_cmd.keys():
+            clusters = self.cluster_log(log_cls_cmd[cmd])
+            if len(clusters) == 0:
                 print("No rule is detected")
-            for idx, log in enumerate(logs):
-                rule = self.generate_rule(info, log, cmd)
 
-                if len(logs) == 1:
+            # build rule for each cluster
+            for idx, log in enumerate(clusters):
+                rule = self.generate_rule(data, log, cmd)
+
+                if len(clusters) == 1:
                     file_out = file_in.split('.')[0] + '_' + cmd + '_rule.json'
                 else:
                     file_out = file_in.split('.')[0] + '_' + cmd + str(idx) + '_rule.json'
-                results.append(file_out)
+                file_names.append(file_out)
 
                 with open(dir_out + file_out, 'w') as f:
                     json.dump(rule, f)
 
-        return results
+        return file_names
 
-    # return rule built from info and logs
-    def generate_rule(self, info, log, cmd):
-        # create name of rule
-        n_dict = {n['device']: n for n in info['neighbors']}
+    # return rule built from data and cluster
+    def generate_rule(self, data, cluster, cmd):
+        neigh_dict = {n['device']: n for n in data['neighbors']}
 
-        name = self.construct_name(info['device'], n_dict.keys(), cmd)
-
-        # create result part of rule
-        result = self.construct_result(info['device'], info['capability'], cmd)
+        rule_name = self.construct_name(data['device'], neigh_dict.keys(), cmd)
 
         # create rule
-        # construct EveryAction if there's only a time query
-        if len(log) == 1 and log[0][0] == 'time':
-            action = self.construct_EveryAction(log[0], result)
+        result = self.construct_result(data['device'], data['capability'], cmd)
+
+        if len(cluster) == 1 and cluster[0][0] == 'time':
+            # construct EveryAction if there's only time query
+            action = self.construct_EveryAction(cluster[0], result)
         else:
-            action = self.construct_IfAction(log, n_dict, result)
+            action = self.construct_IfAction(cluster, neigh_dict, result)
 
-        rule = {'name': name, 'actions': [action]}
-
-        return rule
+        return {'name': rule_name, 'actions': [action]}
 
     # return name of rule
     @staticmethod
-    def construct_name(cur_device, n_devices, cmd):
-        name = cur_device
-        for n in n_devices:
+    def construct_name(device, neighbors, cmd):
+        name = device
+        for n in neighbors:
             name = name + '-' + n
-        name = name + '-' + cmd
-        return name
+        return name + '-' + cmd
 
-    # return result of rule('then' part)
+    # return result of rule ('then' part)
     @staticmethod
-    def construct_result(cur_device, cap, cmd):
-        action = [{'command': {"devices": [cur_device], 'commands': [{'capability': cap, 'command': cmd}]}}]
+    def construct_result(device, cap, cmd):
+        action = [{'command': {"devices": [device], 'commands': [{'capability': cap, 'command': cmd}]}}]
         return action
 
-    # return condition of rule with IfAction format
-    def construct_IfAction(self, queries, devices, result):
-        operations = []
-        for q in queries:
-            if q[0] == 'time':
-                operations.append(self.time_operation(q))
-            else:
-                info = q[0].split(':')
-                name = info[0]
-                num = int(info[1])
-                attr = devices[name]['value'][num]['attribute']
-                if type(q[1]) == str:
-                    operations.append(self.string_operation(q, attr))
-                else:  # integer
-                    operations.append(self.integer_operation(q, attr))
-
-        if len(operations) == 1:
-            operations[0]['then'] = result
-            ret = {'if': operations[0]}
-        else:
-            ret = {'if': {'and': []}}
-            for op in operations:
-                ret['if']['and'].append(op)
-            ret['if']['then'] = result
-
-        return ret
-
-    # return condition of rule with EveryAction format
-    # used for time condition
-    @staticmethod
-    def construct_EveryAction(time_query, result):
-        hour = int(time_query[1][0][0:2])
-        minute = int(time_query[1][0][3:5])
-
-        operation = {'time': {'hour': hour, 'minute': minute}}
-        return {'every': {'specific': operation, 'actions': result}}
-
+    # return time operation with 'between'
+    # query given with form ('time', (cluster, (start, end)))
     @staticmethod
     def time_operation(query):
-        start_h = int(query[1][1][0][0:2])
-        start_m = int(query[1][1][0][3:5])
-        end_h = int(query[1][1][1][0:2])
-        end_m = int(query[1][1][1][3:5])
-        operation = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': start_h,
-                                                                                             'minute': start_m}},
-                                 'end': {'time': {'hour': end_h, 'minute': end_m}}}}
+        start = query[1][1][0]
+        end = query[1][1][1]
+        return {'between': {'value': {'time': {'reference': 'Now'}},
+                            'start': {'time': {'hour':  int(start[0:2]), 'minute': int(start[3:5])}},
+                            'end': {'time': {'hour': int(end[0:2]), 'minute': int(end[3:5])}}}}
 
-        return operation
-
+    # return integer related operation
+    # query given with ('device', (cluster, mean))
     @staticmethod
     def integer_operation(query, attr):
         if query[1][0] < query[1][1]:
+            # use 'greater_than' syntax if center <= mean
             op = 'greater_than'
         else:
+            # use 'less_than' syntax if center > mean
             op = 'less_than'
-        operation = {op: {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},
-                          "right": {"integer": query[1][0]}}}
+        return {op: {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},
+                     "right": {"integer": query[1][0]}}}
 
-        return operation
-
+    # return string related operation
+    # query given with ('device', value)
     @staticmethod
     def string_operation(query, attr):
         operation = {"equals": {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},
                                 "right": {"string": query[1]}}}
         return operation
 
-    # metric function for DBSCAN
-    def __dist__(self, a, b, log):
-        x = log[int(a[0])]
-        y = log[int(b[0])]
-        return self.log_dist(x, y)
+    # return condition in EveryAction format
+    @staticmethod
+    def construct_EveryAction(time_query, result):
+        hour = int(time_query[1][0][0:2])
+        minute = int(time_query[1][0][3:5])
+        operation = {'time': {'hour': hour, 'minute': minute}}
 
-    # return distance between two logs x and y
-    def log_dist(self, x, y):
-        total = 0
-        for i in range(0, len(x)):
-            if x[i][0] == 'timestamp':
-                frmt = '%H:%M'
-                x_time = x[i][1][11:16]
-                y_time = y[i][1][11:16]
+        return {'every': {'specific': operation, 'actions': result}}
 
-                time = datetime.strptime(x_time, frmt) - datetime.strptime(y_time, frmt)
-                if time.days < 0 or time.seconds >= 43200:
-                    time = datetime.strptime(y_time, frmt) - datetime.strptime(x_time, frmt)
-
-                total = total + time.seconds / 60 * self.weight[0]
+    # return condition in IfAction format
+    def construct_IfAction(self, queries, devices, result):
+        operations = []
+        for q in queries:
+            if self.is_time(q):
+                operations.append(self.time_operation(q))
             else:
-                for j in range(0, len(x[i][1])):
-                    x_val = x[i][1][j]
-                    y_val = y[i][1][j]
-                    if type(x_val) == int:
-                        total = total + abs(x_val - y_val) * self.weight[1]
-                    elif type(x_val) == str:
-                        if x_val is not y_val:
-                            total = total + 1 * self.weight[2]
-        return total
+                info = q[0].split(':')
+                attr = devices[info[0]]['value'][int(info[1])]['attribute']
+                if self.is_int(q):
+                    operations.append(self.integer_operation(q, attr))
+                else:
+                    operations.append(self.string_operation(q, attr))
 
-    # find representative point of cluster
-    def find_point(self, cluster):
-        assert (len(cluster) > 0)
-        assert (cluster[0][0][0] == 'timestamp')  # first attribute is always timestamp
+        # merge operations
+        if len(operations) == 1:
+            operations[0]['then'] = result
+            action = {'if': operations[0]}
+        else:
+            action = {'if': {'and': []}}
+            for op in operations:
+                action['if']['and'].append(op)
+            action['if']['then'] = result
 
-        data = self.logs_to_dict(cluster)
+        return action
 
-        # get mean of each column
-        ret = {}
-        for k, v in data.items():
-            if k == "timestamp":
-                avg, var, end = self.avg_time(v)
-                if var <= self.thld[0]:
-                    ret['time'] = (avg, end)
-            elif type(v[0]) is int:
-                avg, var, med = self.avg_int(v)
-                if var <= self.thld[1]:
-                    ret[k] = (avg, med)
-            elif type(v[0]) is str:
-                avg, rat = self.avg_str(v)
-                if rat >= self.thld[2]:
-                    ret[k] = avg
-
-        # return self.dict_to_log(ret)
-        ret_list = []
-        for k, v in ret.items():
-            ret_list.append((k, v))
-        return ret_list
-
-    # pick representative logs
-    def cluster_log(self, logs):
-        x = np.arange(len(logs)).reshape(-1, 1)
-
-        dbscan = DBSCAN(eps=self.eps, min_samples=self.min_samples, metric=self.__dist__,
-                        metric_params={'log': logs}).fit(x)
-        label = dbscan.labels_
-
-        n_clusters_ = len(set(label)) - (1 if -1 in label else 0)
-        cluster = {lab: [] for lab in range(n_clusters_)}
-        for i in x:
-            idx = int(i[0])
-            if label[idx] == -1:
-                continue
-            cluster[label[idx]].append(logs[idx])
-
-        ret = []
-        for lab in range(n_clusters_):
-            ret.append(self.find_point(cluster[lab]))
-
-        return ret
-
-    # pick representative logs based on Apriori algorithm
-    def cluster_log2(self, logs, info=False):
+    # return representative logs based on apriori algorithm
+    def cluster_log(self, logs, info=False):
         one_region = list(self.get_dense_region(logs))
 
         cand_dict = {}
@@ -251,11 +159,11 @@ class SelfAutomation:
                 key = tuple(c)
                 if key in cand_dict:
                     cand_dict[key].append(idx)
-                elif key is not ():
+                elif key != ():
                     cand_dict[key] = [idx]
 
         for key in list(cand_dict.keys()):
-            if len(cand_dict[key]) < self.minsup:
+            if len(cand_dict[key]) < self.min_sup:
                 del cand_dict[key]
 
             attributes = [self.get_interval(attr) for attr in key]
@@ -279,33 +187,6 @@ class SelfAutomation:
 
         return clusters
 
-    # get min max information from logs
-    def add_info(self, logs, center):
-        data = self.logs_to_dict(logs)
-
-        # get mean of each column
-        ret = {}
-        for k, v in data.items():
-            if k == 'timestamp':
-                _, _, end = self.avg_time(v)
-                ret['time'] = end
-            elif type(v[0]) == int:
-                me, _, med = self.avg_int(v)
-                ret[k] = round(me, 2)
-
-        new_center = []
-        for query in center:
-            if self.is_time(query):
-                value = (self.ang_to_min(query[1]), ret['time'])
-                new_center.append(('time', value))
-            elif self.is_int(query):
-                value = (query[1], ret[query[0]])
-                new_center.append((query[0], value))
-            else:
-                new_center.append(query)
-
-        return tuple(new_center)
-
     # return dense 1-region dictionary
     def get_dense_region(self, logs):
         regions = {}
@@ -319,19 +200,10 @@ class SelfAutomation:
                     else:
                         regions[v] = 0.5
         for k in list(regions.keys()):
-            if regions[k] < self.minsup:
+            if regions[k] < self.min_sup:
                 del regions[k]
 
         return regions
-
-    # return candidate cluster
-    # time attribute has angle form
-    def get_candidate_cluster(self, regions, log):
-        candidate = []
-        for point in log:
-            if point in regions:
-                candidate.append(point)
-        return candidate
 
     # returns acceptable region
     def get_interval(self, point):
@@ -358,14 +230,48 @@ class SelfAutomation:
 
         return region
 
-    # static methods
-    # return a usage log as a dictionary
+    # append additional information to cluster
+    def add_info(self, logs, center):
+        data = self.logs_to_dict(logs)
+
+        ret = {}
+        for k, v in data.items():
+            if k == 'timestamp':
+                ret['time'] = self.time_info(v)
+            elif type(v[0]) == int:
+                me = self.int_info(v)
+                ret[k] = round(me, 2)
+
+        new_center = []
+        for query in center:
+            if self.is_time(query):
+                value = (self.ang_to_min(query[1]), ret['time'])
+                new_center.append(('time', value))
+            elif self.is_int(query):
+                value = (query[1], ret[query[0]])
+                new_center.append((query[0], value))
+            else:
+                new_center.append(query)
+
+        return tuple(new_center)
+
+    # return candidate cluster
+    # time attribute has angle form
+    @staticmethod
+    def get_candidate_cluster(regions, log):
+        candidate = []
+        for point in log:
+            if point in regions:
+                candidate.append(point)
+        return candidate
+
+    # return usage log as a dictionary
     @staticmethod
     def read_log(file_name):
         try:
             with open(file_name, "r") as f:
-                info = json.load(f)
-            return info
+                data = json.load(f)
+            return data
         except FileNotFoundError as e:
             print(e)
             return None
@@ -374,109 +280,54 @@ class SelfAutomation:
     # using 'command' as a key and a list of corresponding logs as a value
     @staticmethod
     def cls_log(logs):
-        log_dict = {}
+        log_cls_cmd = {}
         for lg in logs:
             cmd = lg['command']
 
             # exclude value of 'command' from list
             lg_list = list(i for i in lg.items() if i[0] != 'command')
 
-            if cmd in log_dict:
-                log_dict[cmd].append(lg_list)
+            if cmd in log_cls_cmd:
+                log_cls_cmd[cmd].append(lg_list)
             else:
-                log_dict[cmd] = [lg_list]
+                log_cls_cmd[cmd] = [lg_list]
 
-        return log_dict
+        return log_cls_cmd
 
     # return a dictionary using a name of an attribute as a key and
     # a list of corresponding values as a value
     @staticmethod
     def logs_to_dict(logs):
-        ret = {}
-        for lg in logs[0]:
-            if type(lg[1]) is list:  # split the list and name each attribute as 'device-name' + count
-                for i in range(0, len(lg[1])):
-                    ret[lg[0] + ':' + str(i)] = [lg[1][i]]
+        log_dict = {}
+
+        # create key and value
+        for attr in logs[0]:
+            if type(attr[1]) is list:  # split the list and name each attribute as 'device-name' + count
+                for i in range(0, len(attr[1])):
+                    log_dict[attr[0] + ':' + str(i)] = [attr[1][i]]
             else:
-                ret[lg[0]] = [lg[1]]
+                log_dict[attr[0]] = [attr[1]]
 
         if len(logs) > 1:
             for log in logs[1:]:
-                for lg in log:
-                    if type(lg[1]) is list:
-                        for i in range(0, len(lg[1])):
-                            ret[lg[0] + ':' + str(i)].append(lg[1][i])
+                for attr in log:
+                    if type(attr[1]) is list:
+                        for i in range(0, len(attr[1])):
+                            log_dict[attr[0] + ':' + str(i)].append(attr[1][i])
                     else:
-                        ret[lg[0]].append(lg[1])
+                        log_dict[attr[0]].append(attr[1])
 
-        return ret
+        return log_dict
 
-    # return a single log generated from a given dictionary
+    # return true if point represents time attribute
     @staticmethod
-    def dict_to_log(data):
-        ret = []
+    def is_time(point):
+        return (point[0] == 'timestamp') or (point[0] == 'time')
 
-        prev = None
-        prev_val = []
-        for k, v in data.items():
-            attr = k.split(':')
-            if len(attr) > 1:  # keyword + num
-                keyword = attr[0]
-                if prev == keyword:
-                    prev_val.append(v)
-                else:  # new keyword
-                    if prev is not None:
-                        ret.append((prev, prev_val))
-                    prev = keyword
-                    prev_val = [v]
-            else:  # time
-                ret.append((k, v))
-
-        if prev is not None:
-            ret.append((prev, prev_val))
-
-        return ret
-
-    # return average and variance of time
-    # modify source from: https://rosettacode.org/wiki/Averages/Mean_time_of_day#Python
+    # return true if point has integer type value
     @staticmethod
-    def avg_time(logs):
-        def ang_to_min(angle):
-            day = 24 * 60
-            minute = angle * day / 360
-            if minute < 0:
-                minute += day
-            return divmod(minute, 60)
-
-        frmt = '%H:%M'
-        dts = [datetime.strptime(lg[11:16], frmt) for lg in logs]
-        minutes = [dt.hour * 60 + dt.minute for dt in dts]
-
-        # convert minutes to angle to calculate mean and variance
-        day = 24 * 60
-        angles = np.array([m * 360. / day for m in minutes]) * u.deg
-
-        mean_angle = circmean(angles).value
-        var = circvar(angles).value  # use angular variance
-
-        mean_t = '%02i:%02i' % ang_to_min(mean_angle)
-        min_t = '%02i:%02i' % ang_to_min(min(angles).value)
-        max_t = '%02i:%02i' % ang_to_min(max(angles).value)
-
-        return mean_t, var, (min_t, max_t)
-
-    # return mode of string type values and ratio
-    # assume two possible state
-    @staticmethod
-    def avg_str(logs):
-        counter = Counter(logs).most_common(1)
-
-        return counter[0][0], counter[0][1] / len(logs)
-
-    # return mean and variance of integer type values
-    @staticmethod
-    def avg_int(logs):
-        return np.mean(logs), np.var(logs), np.median(logs)
+    def is_int(point):
+        return (type(point[1]) == int) or (type(point[1][0]) == int)
 
     # convert angle as string type time
     @staticmethod
@@ -487,21 +338,28 @@ class SelfAutomation:
             minute -= day
         return '%02i:%02i' % divmod(minute, 60)
 
-    # convert string type timestamp to angle
+    # convert string type time to angle
     @staticmethod
-    def time_to_ang(log):
+    def time_to_ang(str_time):
         frmt = '%H:%M'
-        dt = datetime.strptime(log[11:16], frmt)
+        dt = datetime.strptime(str_time[11:16], frmt)
         minute = dt.hour * 60 + dt.minute
 
         return minute / 4
 
-    # return true if point represents time attribute
+    # return minimum and maximum of time
     @staticmethod
-    def is_time(point):
-        return (point[0] == 'timestamp') or (point[0] == 'time')
+    def time_info(logs):
+        # convert minutes to angle
+        angles = [SelfAutomation.time_to_ang(m) for m in logs]
 
-    # return true if point has integer type value
+        min_t = SelfAutomation.ang_to_min(min(angles))
+        max_t = SelfAutomation.ang_to_min(max(angles))
+
+        return min_t, max_t
+
+    # return mean of integer values
     @staticmethod
-    def is_int(point):
-        return type(point[1]) == int
+    def int_info(logs):
+        return np.mean(logs)
+

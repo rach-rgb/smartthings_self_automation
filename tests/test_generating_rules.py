@@ -12,8 +12,7 @@ class TestRuleGenerating(unittest.TestCase):
     def test_construct_name(self):
         # no neighbors
         in_dict = {"device": "my-device"}
-        n_list = []
-        name = SelfAutomation.construct_name(in_dict['device'], n_list, 'on')
+        name = SelfAutomation.construct_name(in_dict['device'], [], 'on')
 
         self.assertEqual("my-device-on", name)
 
@@ -31,61 +30,57 @@ class TestRuleGenerating(unittest.TestCase):
 
         self.assertEqual(expect, result)
 
-    def test_construct_EveryAction(self):
-        query = ('time', ('18:00', ('17:50', '18:10')))
-        result = [{'command': {"devices": ['my-device'], 'commands':[{'capability': 'switch', 'command': 'on'}]}}]
-        expect = {'every': {'specific': {'time': {'hour': '18', 'minute': '00'}}, 'actions': [{'command':
-                  {'devices': ['my-device'], 'commands':[{'capability': 'switch', 'command': 'on'}]}}]}}
-
-        self.assertEqual(expect, SelfAutomation.construct_EveryAction(query, result))
-
     def test_time_operation(self):
         query = ('time', ('18:00', ('17:50', '18:10')))
-        expect = {'between': {'value': {'time': {'reference': 'Now'}}, 'start': {'time': {'hour': 17, 'minute': 50}}
-                    , 'end': {'time': {'hour': 18, 'minute': 10}}}}
+        expect = {'between': {'value': {'time': {'reference': 'Now'}},
+                  'start': {'time': {'hour': 17, 'minute': 50}}, 'end': {'time': {'hour': 18, 'minute': 10}}}}
 
         self.assertEqual(expect, SelfAutomation.time_operation(query))
 
     def test_integer_operation(self):
         # when mean < median
         query = ('my-sensor', (30, 40))
-        attr = 'temperature'
-        expect = {"greater_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}}, "right":
-                    {"integer": 30}}}
+        expect = {"greater_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}},
+                                   "right": {"integer": 30}}}
 
-        self.assertEqual(expect, SelfAutomation.integer_operation(query, attr))
+        self.assertEqual(expect, SelfAutomation.integer_operation(query, 'temperature'))
 
         # when mean > median
         query = ('my-sensor', (30, 20))
-        attr = 'temperature'
-        expect = {"less_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}}, "right":
-            {"integer": 30}}}
+        expect = {"less_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}},
+                                "right": {"integer": 30}}}
 
-        self.assertEqual(expect, SelfAutomation.integer_operation(query, attr))
+        self.assertEqual(expect, SelfAutomation.integer_operation(query, 'temperature'))
 
     def test_string_operation(self):
         query = ('my-sensor', 'active')
-        attr = 'motion'
-        expect = {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}}, "right":
-                    {"string": 'active'}}}
+        expect = {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}},
+                             "right": {"string": 'active'}}}
 
-        self.assertEqual(expect, SelfAutomation.string_operation(query, attr))
+        self.assertEqual(expect, SelfAutomation.string_operation(query, 'motion'))
 
         # remove number
         query = ('my-sensor:0', 'active')
-        attr = 'motion'
-        expect = {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}}, "right":
-                    {"string": 'active'}}}
+        expect = {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}},
+                             "right": {"string": 'active'}}}
 
-        self.assertEqual(expect, SelfAutomation.string_operation(query, attr))
+        self.assertEqual(expect, SelfAutomation.string_operation(query, 'motion'))
+
+    def test_construct_EveryAction(self):
+        query = ('time', ('18:00', ('17:50', '18:10')))
+        result = [{'command': {"devices": ['my-device'], 'commands':[{'capability': 'switch', 'command': 'on'}]}}]
+        expect = {'every': {'specific': {'time': {'hour': 18, 'minute': 0}}, 'actions': [{'command':
+                  {'devices': ['my-device'], 'commands':[{'capability': 'switch', 'command': 'on'}]}}]}}
+
+        self.assertEqual(expect, SelfAutomation.construct_EveryAction(query, result))
 
     def test_construct_IfAction(self):
         # only one query
         queries = [('my-sensor:0', 'active')]
         devices = {'my-sensor': {'device': 'my-sensor', 'value': [{"attribute": 'motion'}]}}
         result = ['results']
-        expect = {'if': {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}}, "right":
-                    {"string": 'active'}}, 'then': ['results']}}
+        expect = {'if': {"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}},
+                                    "right": {"string": 'active'}}, 'then': ['results']}}
 
         self.assertEqual(expect, self.automation.construct_IfAction(queries, devices, result))
 
@@ -95,21 +90,22 @@ class TestRuleGenerating(unittest.TestCase):
         devices = {'my-sensor': {'device': 'my-sensor', 'value': [{"attribute": 'motion'}, {'attribute': 'temp'}]},
                    'my-device': {'device': 'my-device', 'value': [{"attribute": 'motion2'}]}}
         result = ['results']
-        expect = {'if': {'and': [{"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}},
-                                            "right": {"string": 'active'}}},
-                {"less_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temp"}},
-                            "right": {"integer": 50}}},
-                {"equals": {"left": {"device": {"devices": ["my-device"], "attribute": "motion2"}},
-                            "right": {"string": 'active'}}},
-                {'between': {'value': {'time': {'reference': 'Now'}},
-                'start': {'time': {'hour': 17, 'minute': 50}}, 'end': {'time': {'hour': 18, 'minute': 10}}}}],
-                         'then': result}}
+        expect = {'if': {'and':
+                  [{"equals": {"left": {"device": {"devices": ["my-sensor"], "attribute": "motion"}},
+                               "right": {"string": 'active'}}},
+                   {"less_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temp"}},
+                                  "right": {"integer": 50}}},
+                   {"equals": {"left": {"device": {"devices": ["my-device"], "attribute": "motion2"}},
+                               "right": {"string": 'active'}}},
+                   {'between': {'value': {'time': {'reference': 'Now'}},
+                    'start': {'time': {'hour': 17, 'minute': 50}}, 'end': {'time': {'hour': 18, 'minute': 10}}}}],
+                    'then': result}}
 
         self.assertEqual(expect, self.automation.construct_IfAction(queries, devices, result))
 
     def test_generate_rule(self):
-        info = {'device': 'my-dev', 'capability': 'switch', 'neighbors': [{'device': 'my-sensor', 'value': [
-            {"attribute": 'motion'}, {'attribute': 'status'}]}]}
+        info = {'device': 'my-dev', 'capability': 'switch',
+                'neighbors': [{'device': 'my-sensor', 'value': [{"attribute": 'motion'}, {'attribute': 'status'}]}]}
         log = [('my-sensor:0', 'active'), ('my-sensor:1', (50, 20))]
         cmd = 'on'
 
@@ -118,8 +114,7 @@ class TestRuleGenerating(unittest.TestCase):
                           'right': {'string': 'active'}}}
         op2 = {'less_than': {"left": {"device": {"devices": ["my-sensor"], "attribute": "status"}},
                              "right": {"integer": 50}}}
-        result = [{'command': {'devices': ['my-dev'],
-                                        'commands': [{'capability': 'switch', 'command': 'on'}]}}]
+        result = [{'command': {'devices': ['my-dev'], 'commands': [{'capability': 'switch', 'command': 'on'}]}}]
         rule = {'name': 'my-dev-my-sensor-on', 'actions': [{'if': {'and': [op1, op2], 'then': result}}]}
 
         self.assertEqual(rule, self.automation.generate_rule(info, log, cmd))
@@ -128,7 +123,7 @@ class TestRuleGenerating(unittest.TestCase):
         log = [('time', ('18:00', ('17:50', '18:10')))]
 
         # expected result
-        op = {'every': {'specific': {'time': {'hour': '18', 'minute': '00'}}, 'actions': result}}
+        op = {'every': {'specific': {'time': {'hour': 18, 'minute': 00}}, 'actions': result}}
         rule = {'name': 'my-dev-my-sensor-on', 'actions': [op]}
 
         self.assertEqual(rule, self.automation.generate_rule(info, log, cmd))
