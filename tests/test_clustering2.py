@@ -138,6 +138,8 @@ class TestClustering2(unittest.TestCase):
         self.assertEqual([(('dev', 'active'), )], ret)
 
     def test_cluster_log_int(self):
+        self.automation.int_err = 5
+
         # integer attribute
         logs = [[('dev', 50)], [('dev', 50)], [('dev', 50)]]
         ret = self.automation.cluster_log2(logs)
@@ -171,7 +173,70 @@ class TestClustering2(unittest.TestCase):
         ret = self.automation.cluster_log2(logs)
 
         self.assertEqual([(('time', '18:00'), )], ret)
-        # TODO: fix error
 
+        # process 24:00 = 00:00 case
+        logs = [[('timestamp', '2022-01-01T23:59:00.000Z')], [('timestamp', '2022-01-01T23:59:00.000Z')],
+                [('timestamp', '2022-01-01T00:01:00.000Z')], [('timestamp', '2022-01-01T00:01:00.000Z')]]
+        ret = self.automation.cluster_log2(logs)
+
+        self.assertEqual([(('time', '00:00'), )], ret)
+
+    def test_cluster_log_info(self):
+        # add time interval information
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')]]
+        ret = self.automation.cluster_log2(logs, info=True)
+
+        self.assertEqual([(('time', ('18:00', ('18:00', '18:00'))), )], ret)
+
+        # add time interval information
+        logs = [[('timestamp', '2022-01-01T17:50:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:10:00.000Z')]]
+        ret = self.automation.cluster_log2(logs, info=True)
+
+        self.assertEqual([(('time', ('18:00', ('17:50', '18:10'))), )], ret)
+
+        # add integer median value
+        logs = [[('sen', 25)], [('sen', 30)], [('sen', 30)], [('sen', 30)], [('sen', 34)]]
+        ret = self.automation.cluster_log2(logs, info=True)
+
+        self.assertEqual([(('sen', (30, 29.8)), )], ret)
+
+        # add integer median value
+        logs = [[('sen', 26)], [('sen', 30)], [('sen', 30)], [('sen', 30)], [('sen', 35)]]
+        ret = self.automation.cluster_log2(logs, info=True)
+
+        self.assertEqual([(('sen', (30, 30.2)), )], ret)
+
+        # no additional information for string value
+        logs = [[('sen', 'act')], [('sen', 'act')], [('sen', 'act')]]
+        ret = self.automation.cluster_log2(logs, info=True)
+
+        self.assertEqual([(('sen', 'act'), )], ret)
+
+    def test_add_info(self):
+        # add time interval information
+        logs = [[('timestamp', '2022-01-01T17:50:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
+                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:10:00.000Z')]]
+        center = (('time', 270), )
+        ret = self.automation.add_info(logs, center)
+
+        self.assertEqual((('time', ('18:00', ('17:50', '18:10'))), ), ret)
+
+        # add median information
+        logs = [[('sen', 28)], [('sen', 30)], [('sen', 35)]]
+        center = (('sen', 30),)
+        ret = self.automation.add_info(logs, center)
+
+        self.assertEqual((('sen', (30, 31)),), ret)
+
+        # no additional information
+        logs = [[('sen', 'act')], [('sen', 'act')], [('sen', 'act')]]
+        center = (('sen', 'act'),)
+        ret = self.automation.add_info(logs, center)
+
+        self.assertEqual((('sen', 'act'), ), ret)
 
 

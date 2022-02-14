@@ -238,11 +238,11 @@ class SelfAutomation:
         return ret
 
     # pick representative logs based on Apriori algorithm
-    def cluster_log2(self, logs):
+    def cluster_log2(self, logs, info=False):
         one_region = list(self.get_dense_region(logs))
 
         cand_dict = {}
-        for log in logs:
+        for idx, log in enumerate(logs):
             attributes = [self.get_interval(attr) for attr in log]
             full_logs = list(product(*attributes))
 
@@ -250,26 +250,61 @@ class SelfAutomation:
             for c in cands:
                 key = tuple(c)
                 if key in cand_dict:
-                    cand_dict[key] = cand_dict[key] + 0.5
+                    cand_dict[key].append(idx)
                 elif key is not ():
-                    cand_dict[key] = 0.5
+                    cand_dict[key] = [idx]
 
         for key in list(cand_dict.keys()):
-            if cand_dict[key] < self.minsup:
+            if len(cand_dict[key]) < self.minsup:
                 del cand_dict[key]
 
             attributes = [self.get_interval(attr) for attr in key]
             for near_key in list(product(*attributes)):
-                if (near_key in cand_dict) and (cand_dict[key] < cand_dict[near_key]):
+                if (near_key in cand_dict) and (len(cand_dict[key]) < len(cand_dict[near_key])):
                     del cand_dict[key]
                     break
 
-        clusters = list(cand_dict.keys())
-        for cluster in clusters:
-            if self.is_time(cluster[0]):
-                cluster[0][1] = self.ang_to_min(cluster[0][1])  # change angular representation to str
+        clusters = []
+        if not info:
+            clusters = []
+            for key in cand_dict.keys():
+                if self.is_time(key[0]):
+                    clusters.append((('time', self.ang_to_min(key[0][1])), ) + key[1:])
+                else:
+                    clusters.append(key)
+        else:
+            for key in cand_dict.keys():
+                contribute = [logs[idx] for idx in set(cand_dict[key])]
+                clusters.append(self.add_info(contribute, key))
 
-        return list(cand_dict.keys())
+        return clusters
+
+    # get min max information from logs
+    def add_info(self, logs, center):
+        data = self.logs_to_dict(logs)
+
+        # get mean of each column
+        ret = {}
+        for k, v in data.items():
+            if k == 'timestamp':
+                _, _, end = self.avg_time(v)
+                ret['time'] = end
+            elif type(v[0]) == int:
+                me, _, med = self.avg_int(v)
+                ret[k] = round(me, 2)
+
+        new_center = []
+        for query in center:
+            if self.is_time(query):
+                value = (self.ang_to_min(query[1]), ret['time'])
+                new_center.append(('time', value))
+            elif self.is_int(query):
+                value = (query[1], ret[query[0]])
+                new_center.append((query[0], value))
+            else:
+                new_center.append(query)
+
+        return tuple(new_center)
 
     # return dense 1-region dictionary
     def get_dense_region(self, logs):
