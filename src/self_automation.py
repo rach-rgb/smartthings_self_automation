@@ -23,7 +23,7 @@ class SelfAutomation:
     def run(self, file_in, dir_out='./output/'):
         data = self.read_log(self.input_dir + file_in)
 
-        if len(data['history']) == 0:
+        if len(data['history']) < self.min_sup:
             print("No rule is detected")
             return []
 
