@@ -1,6 +1,5 @@
 import unittest
 
-# setting path
 from src.self_automation import SelfAutomation
 
 

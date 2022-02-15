@@ -2,7 +2,6 @@ import json
 import numpy as np
 from datetime import datetime
 from itertools import product
-from astropy import units as u
 
 
 # generate rule and mode from logs
@@ -21,15 +20,20 @@ class SelfAutomation:
 
     # export self-generated rules and return file names of exported rules as a list
     # file_in: directory to read logs, dir_out: directory to save generated rules
-    def run(self, file_in, dir_out):
+    def run(self, file_in, dir_out='./output/'):
         data = self.read_log(self.input_dir + file_in)
+
+        if len(data['history']) == 0:
+            print("No rule is detected")
+            return []
+
         log_cls_cmd = self.cls_log(data['history'])
 
         file_names = []
 
         # generate rules for each device command
         for cmd in log_cls_cmd.keys():
-            clusters = self.cluster_log(log_cls_cmd[cmd])
+            clusters = self.cluster_log(log_cls_cmd[cmd], info=True)
             if len(clusters) == 0:
                 print("No rule is detected")
 
@@ -285,7 +289,13 @@ class SelfAutomation:
             cmd = lg['command']
 
             # exclude value of 'command' from list
-            lg_list = list(i for i in lg.items() if i[0] != 'command')
+            lg_list = []
+            for k, v in lg.items():
+                if type(v) is list:
+                    for idx, elem in enumerate(v):
+                        lg_list.append((k+":"+str(idx), elem))
+                elif k != 'command':
+                    lg_list.append((k, v))
 
             if cmd in log_cls_cmd:
                 log_cls_cmd[cmd].append(lg_list)

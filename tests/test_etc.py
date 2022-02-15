@@ -35,9 +35,9 @@ class TestSelfAutomation(unittest.TestCase):
                 {"time": "12:00", "my-sensor": ['active'], "command": "off2"}]
         ret = SelfAutomation.cls_log(logs)
         
-        self.assertEqual([("time", "12:00"), ("my-sensor", [70])], ret['on'][0])
-        self.assertEqual([("time", "12:00"), ("my-sensor", [70, 50])], ret['off'][0])
-        self.assertEqual([("time", "12:00"), ("my-sensor", ['active'])], ret['off2'][0])
+        self.assertEqual([("time", "12:00"), ("my-sensor:0", 70)], ret['on'][0])
+        self.assertEqual([("time", "12:00"), ("my-sensor:0", 70), ("my-sensor:1", 50)], ret['off'][0])
+        self.assertEqual([("time", "12:00"), ("my-sensor:0", 'active')], ret['off2'][0])
 
     def test_logs_to_dict(self):
         logs = [[('timestamp', '2022-01-01T01:00:00.000Z'), ('sensor', [50])],
