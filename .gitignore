@@ -134,3 +134,5 @@ tests/output/
 tests/answer/
 tests/logs/
 tests/rules/
+.idea/
+/tests/logs/
