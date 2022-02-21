@@ -167,7 +167,7 @@ class SelfAutomation:
                     cand_dict[key] = [idx]
 
         for key in list(cand_dict.keys()):
-            if len(cand_dict[key]) < self.min_sup:
+            if len(cand_dict[key]) < self.min_sup * 2:
                 del cand_dict[key]
 
             attributes = [self.get_interval(attr) for attr in key]
