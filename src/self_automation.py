@@ -10,7 +10,7 @@ class SelfAutomation:
         # set log directory and hyperparameters
         self.input_dir = input_dir
         if param is None:
-            self.min_sup = 3     # minimum support
+            self.min_sup = 5     # minimum support
             self.time_err = 3.75    # acceptable error of time attribute as an angle, equivalent to 15 minutes
             self.int_err = 5    # acceptable error of integer attribute
         else:
@@ -192,22 +192,112 @@ class SelfAutomation:
         return clusters
 
     # return dense 1-region dictionary
+    # key: category name of attribute, value: list of dense region
     def get_dense_region(self, logs):
-        regions = {}
+        dense_one_dict = {}
 
-        for log in logs:
-            for point in log:
-                interval = self.get_interval(point)
-                for v in interval:
-                    if v in regions:
-                        regions[v] = regions[v] + 0.5
-                    else:
-                        regions[v] = 0.5
-        for k in list(regions.keys()):
-            if regions[k] < self.min_sup:
-                del regions[k]
+        # key: category of attribute, val: list of corresponding values
+        for key, val in self.logs_to_dict(logs).items():
+            category = key
 
-        return regions
+            if self.is_time((key, val[0])):
+                category = 'time'
+                dense_regions = self.get_time_regions(val)
+            elif self.is_int((key, val[0])):
+                dense_regions = self.get_numeric_regions(val)
+            else:   # string features
+                dense_regions = self.get_string_regions(val)
+
+            if len(dense_regions) > 0:
+                dense_one_dict[category] = dense_regions
+
+        return dense_one_dict
+
+    # get dense regions of time features
+    def get_time_regions(self, values):
+        dense_regions = []
+
+        angles = sorted([self.time_to_ang(v) for v in values])
+
+        # count frequency of interval
+        prev = angles[0]
+        first_interval = None
+        interval = []
+        for v in angles:
+            if v <= prev + self.time_err:  # contain in same interval
+                # update values
+                prev = v
+                interval.append(v)
+            else:  # starts new interval
+                if interval[0] == angles[0]:  # keep result
+                    first_interval = interval
+                    prev = v
+                    interval = [v]
+                    continue
+
+                if len(interval) >= self.min_sup:  # add interval to dense region
+                    dense_regions.append(interval)
+                prev = v
+                interval = [v]
+
+        # process first and last interval
+        if first_interval is not None:
+            end_time = interval[-1] + self.time_err
+            if end_time >= 360 and (end_time - 360) >= first_interval[0]:
+                if len(first_interval) + len(interval) >= self.min_sup:
+                    dense_regions.append(interval+first_interval)   # add merged interval to dense_regions
+            else:
+                if len(first_interval) >= self.min_sup:
+                    dense_regions.insert(0, first_interval)
+                if len(interval) >= self.min_sup:
+                    dense_regions.append(interval)
+        else:   # first_interval is None
+            if len(interval) >= self.min_sup:
+                dense_regions.append(interval)
+
+        return dense_regions
+
+    # get dense regions of numeric type features
+    def get_numeric_regions(self, values):
+        dense_regions = []
+
+        # sort list
+        values = sorted(values)
+        values.append(values[-1] + 999999)
+
+        # count frequency of interval
+        prev = values[0]
+        interval = []
+        for v in values:
+            if v <= prev + self.int_err:  # contain in same interval
+                # update values
+                prev = v
+                interval.append(v)
+            else:  # starts new interval
+                if len(interval) >= self.min_sup:  # add interval to dense region
+                    dense_regions.append(interval)
+                prev = v
+                interval = [v]
+
+        return dense_regions
+
+    # get dense regions of string type features
+    def get_string_regions(self, values):
+        dense_regions = []
+
+        # count frequency
+        freq = {}
+        for v in values:
+            if v in freq:
+                freq[v] = freq[v] + 1
+            else:
+                freq[v] = 1
+
+        for k, v in freq.items():
+            if v >= self.min_sup:
+                dense_regions.append(k)
+
+        return dense_regions
 
     # returns acceptable region
     def get_interval(self, point):

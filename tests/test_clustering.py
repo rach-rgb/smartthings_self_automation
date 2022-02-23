@@ -9,46 +9,111 @@ class TestClustering(unittest.TestCase):
         self.automation = SelfAutomation()
 
     def test_get_dense_region(self):
+        self.automation.min_sup = 3
+        self.automation.time_err = 3.75
+        self.automation.int_err = 5
+
         # process timestamp attribute
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')]]
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
+                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
+                [('timestamp', '2022-01-05T18:00:00.000Z')]]
         ret = self.automation.get_dense_region(logs)
 
-        self.assertEqual(5, ret[('time', 270)])
+        self.assertEqual([[270.0, 270.0, 270.0, 270.0, 270.0]], ret['time'])
 
         # remove if support < minimum support
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T12:00:00.000Z')], [('timestamp', '2022-01-01T12:00:00.000Z')]]
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
+                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
+                [('timestamp', '2022-01-05T18:00:00.000Z')], [('timestamp', '2022-01-06T18:00:00.000Z')],
+                [('timestamp', '2022-01-07T12:00:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
         ret = self.automation.get_dense_region(logs)
 
-        self.assertFalse(('time', 180) in ret)
+        self.assertEqual([[270.0, 270.0, 270.0, 270.0, 270.0, 270.0]], ret['time'])
 
-        # process real number attribute(time)
-        logs = [[('timestamp', '2022-01-01T17:45:00.000Z')], [('timestamp', '2022-01-01T17:50:00.000Z')],
-                [('timestamp', '2022-01-01T17:55:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:05:00.000Z')], [('timestamp', '2022-01-01T18:10:00.000Z')],
-                [('timestamp', '2022-01-01T18:15:00.000Z')], [('timestamp', '2022-01-01T12:00:00.000Z')]]
+        # process time feature
+        logs = [[('timestamp', '2022-01-01T17:45:00.000Z')], [('timestamp', '2022-01-02T17:50:00.000Z')],
+                [('timestamp', '2022-01-03T17:55:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
+                [('timestamp', '2022-01-05T18:05:00.000Z')], [('timestamp', '2022-01-06T18:10:00.000Z')],
+                [('timestamp', '2022-01-07T18:15:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
         ret = self.automation.get_dense_region(logs)
 
-        self.assertFalse(('time', 266) in ret)      # 266 corresponds to 17:45
-        self.assertEqual(3, ret[('time', 268)])     # 268 corresponds to 17:50
-        self.assertEqual(4, ret[('time', 270)])     # 270 corresponds to 18:00
-        self.assertFalse(('time', 180) in ret)
+        self.assertEqual([[266.25, 267.5, 268.75, 270.0, 271.25, 272.5, 273.75]], ret['time'])
 
-        # process real number attribute(except time)
-        logs = [[('sen', 50)], [('sen', 50)], [('sen', 50)], [('sen', 48)], [('sen', 35)]]
+        # process numerical feature
+        logs = [[('sen', 50)], [('sen', 50)], [('sen', 50)], [('sen', 28)], [('sen', 28)], [('sen', 28)], [('sen', 35)]]
         ret = self.automation.get_dense_region(logs)
 
-        self.assertEqual(3.5, ret[('sen', 50)])
+        self.assertEqual([[28, 28, 28], [50, 50, 50]], ret['sen'])
 
-        # process string attribute
+        # process string feature
         logs = [[('sen', 'active')], [('sen', 'active')], [('sen', 'active')], [('sen', 'inactive')]]
         ret = self.automation.get_dense_region(logs)
 
-        self.assertEqual(3, ret[('sen', 'active')])
+        self.assertEqual(['active'], ret['sen'])
+
+        # process multiple features
+        logs = [[('sen', 'inactive'), ('dev', 50)], [('sen', 'active'), ('dev', 51)], [('sen', 'active'), ('dev', 52)],
+                [('sen', 'inactive'), ('dev', 55)], [('sen', 'active'), ('dev', 20)], [('sen', 'active'), ('dev', 20)]]
+        ret = self.automation.get_dense_region(logs)
+
+        self.assertEqual(['active'], ret['sen'])
+        self.assertEqual([[50, 51, 52, 55]], ret['dev'])
+
+    def test_get_time_regions(self):
+        self.automation.time_err = 3.75
+        self.automation.min_sup = 2
+
+        values = ['2022-01-01T17:45:00.000Z', '2022-01-02T17:50:00.000Z', '2022-01-03T18:00:00.000Z',
+                  '2022-01-04T11:00:00.000Z', '2022-01-05T23:50:00.000Z', '2022-01-06T23:45:00.000Z']
+        ret = self.automation.get_time_regions(values)
+
+        self.assertEqual(2, len(ret))
+        self.assertEqual(3, len(ret[0]))    # 17:45, 17:50, 18:00
+        self.assertEqual(2, len(ret[1]))    # 23:45, 23:50
+
+        # merge first and last interval
+        values = ['2022-01-01T23:50:00.000Z', '2022-01-02T00:00:00.000Z', '2022-01-03T00:10:00.000Z']
+        ret = self.automation.get_time_regions(values)
+
+        self.assertEqual(1, len(ret))
+        self.assertEqual(3, len(ret[0]))    # 23:50, 00:00, 00:10
+
+        # don't merge first and last interval
+        values = ['2022-01-01T00:05:00.000Z', '2022-01-02T00:10:00.000Z', '2022-01-03T00:13:00.000Z',
+                  '2022-01-04T23:45:00.000Z', '2022-01-05T23:44:00.000Z', '2022-01-06T23:42:00.000Z']
+        ret = self.automation.get_time_regions(values)
+
+        self.assertEqual(2, len(ret))
+        self.assertEqual(3, len(ret[0]))    # 00:05, 00:10, 00:13
+        self.assertEqual(3, len(ret[1]))    # 23:45, 23:44, 23:42
+
+    def test_get_numeric_regions(self):
+        self.automation.int_err = 3
+        self.automation.min_sup = 3
+
+        values = [1, 2, 20, 21, 23, 23, 23, 26, 30, 32, 33]
+        self.assertEqual([[20, 21, 23, 23, 23, 26], [30, 32, 33]], self.automation.get_numeric_regions(values))
+
+        values = [1, 2, 32, 33]
+        self.assertEqual([], self.automation.get_numeric_regions(values))
+
+    def test_get_string_regions(self):
+        self.automation.min_sup = 5
+
+        values = ['active', 'active', 'active', 'active', 'active', 'active', 'inactive', 'inactive', 'inactive']
+
+        self.assertEqual(['active'], self.automation.get_string_regions(values))
+
+        # return empty list if there's no dense region
+        values = ['active', 'active', 'active', 'active', 'inactive', 'inactive', 'inactive']
+
+        self.assertEqual([], self.automation.get_string_regions(values))
+
+        # using constant minimum support allows to return both values
+        values = ['active', 'active', 'active', 'active', 'active', 'active',
+                  'inactive', 'inactive', 'inactive', 'inactive', 'inactive']
+
+        self.assertEqual(['active', 'inactive'], self.automation.get_string_regions(values))
 
     def test_get_interval(self):
         func = self.automation.get_interval
