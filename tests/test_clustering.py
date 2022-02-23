@@ -72,11 +72,13 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(2, len(ret[1]))    # 23:45, 23:50
 
         # merge first and last interval
-        values = ['2022-01-01T23:50:00.000Z', '2022-01-02T00:00:00.000Z', '2022-01-03T00:10:00.000Z']
+        values = ['2022-01-01T18:00:00.000Z', '2022-01-02T18:00:00.000Z',
+                  '2022-01-01T23:50:00.000Z', '2022-01-02T00:00:00.000Z', '2022-01-03T00:10:00.000Z']
         ret = self.automation.get_time_regions(values)
 
-        self.assertEqual(1, len(ret))
-        self.assertEqual(3, len(ret[0]))    # 23:50, 00:00, 00:10
+        self.assertEqual(2, len(ret))
+        self.assertEqual(2, len(ret[0]))    # 18:00, 18:00
+        self.assertEqual(3, len(ret[1]))    # 23:50, 00:00, 00:10
 
         # don't merge first and last interval
         values = ['2022-01-01T00:05:00.000Z', '2022-01-02T00:10:00.000Z', '2022-01-03T00:13:00.000Z',
@@ -115,30 +117,6 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual(['active', 'inactive'], self.automation.get_string_regions(values))
 
-    def test_get_interval(self):
-        func = self.automation.get_interval
-
-        # point represents time
-        # round value
-        self.automation.time_err = 3.75
-        self.assertEqual([('time', 176), ('time', 177), ('time', 178), ('time', 179), ('time', 180), ('time', 181),
-                          ('time', 182), ('time', 183), ('time', 184), ('time', 180)],
-                         func(('time', '2022-01-01T12:00:00.000Z')))
-
-        self.automation.time_err = 2
-        self.assertEqual([('time', 358), ('time', 359), ('time', 0), ('time', 1), ('time', 2), ('time', 0)],
-                         func(('time', '2022-01-01T00:00:00.000Z')))
-        self.assertEqual([('time', 357), ('time', 358), ('time', 359), ('time', 0), ('time', 1), ('time', 359)],
-                         func(('time', '2022-01-01T23:56:00.000Z')))
-
-        # point has integer value
-        self.automation.int_err = 3
-        self.assertEqual([('sensor', 47), ('sensor', 48), ('sensor', 49), ('sensor', 50), ('sensor', 51),
-                          ('sensor', 52), ('sensor', 53), ('sensor', 50)], func(('sensor', 50)))
-
-        # point has string value
-        self.assertEqual([('dev', 'active'), ('dev', 'active')], func(('dev', 'active')))
-
     def test_add_info(self):
         # add time interval information
         logs = [[('timestamp', '2022-01-01T17:50:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
@@ -165,17 +143,37 @@ class TestClustering(unittest.TestCase):
 
     def test_get_candidate_cluster(self):
         func = self.automation.get_candidate_cluster
-        regions = [('time', 180), ('sensor', 'active'), ('dev', 50)]
 
-        self.assertEqual([('time', 180)], func(regions, [('time', 180)]))
+        # time attribute
+        regions = {'time': [[0, 3.75], [266.25, 267.5, 268.75]]}
+        self.assertEqual([('time', (0, 3.75))], func(regions, [('timestamp', '2022-01-01T00:05:00.000Z')]))
+        self.assertEqual([('time', (266.25, 268.75))], func(regions, [('timestamp', '2022-01-01T17:48:00.000Z')]))
+
+        regions = {'time': [[266.25, 267.5, 268.75], [355, 358, 0, 2]]}
+        self.assertEqual([('time', (355, 2))], func(regions, [('timestamp', '2022-01-01T23:58:00.000Z')]))
+        self.assertEqual([('time', (355, 2))], func(regions, [('timestamp', '2022-01-01T00:05:00.000Z')]))
+
+        # numerical attribute
+        regions = {'sen': [[1, 1, 2], [20, 23, 24], [25, 25, 28]]}
+        self.assertEqual([('sen', (20, 24))], func(regions, [('sen', 21)]))
+        self.assertEqual([('sen', (1, 2))], func(regions, [('sen', 1)]))
+        self.assertEqual([('sen', (25, 28))], func(regions, [('sen', 25)]))
+        self.assertEqual([], func(regions, [('sen', 7)]))
+
+        # string attribute
+        regions = {'dev': ['active', 'inactive'], 'sen': ['on']}
+        self.assertEqual([('dev', 'active')], func(regions, [('dev', 'active'), ('sen', 'off')]))
+
         # no candidate cluster
-        self.assertEqual([], func(regions, [('time', 0)]))
+        self.assertEqual([], func(regions, [('sen', 'off')]))
+
         # get maximal cluster
-        log = [('time', 180), ('sensor', 'active'), ('dev', 30)]
-        self.assertEqual([('time', 180), ('sensor', 'active')], func(regions, log))
+        self.assertEqual([('dev', 'active'), ('sen', 'on')], func(regions, [('dev', 'active'), ('sen', 'on')]))
 
     # test basic utility of cluster_log with string attribute
     def test_cluster_log_str(self):
+        self.automation.min_sup = 3
+
         # string attribute
         logs = [[('dev', 'active')], [('dev', 'active')], [('dev', 'active')], [('dev', 'active')], [('dev', 'active')],
                 [('dev', 'inactive')], [('dev', 'inactive')], [('dev', 'inactive')]]

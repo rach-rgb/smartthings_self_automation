@@ -1,7 +1,6 @@
 import json
 import numpy as np
 from datetime import datetime
-from itertools import product
 
 
 # generate rule and mode from logs
@@ -151,43 +150,56 @@ class SelfAutomation:
 
     # return representative logs based on apriori algorithm
     def cluster_log(self, logs, info=False):
-        one_region = list(self.get_dense_region(logs))
+        dense_one_regions = self.get_dense_region(logs)
 
         cand_dict = {}
-        for idx, log in enumerate(logs):
-            attributes = [self.get_interval(attr) for attr in log]
-            full_logs = list(product(*attributes))
+        for log in logs:
+            candidate = tuple(self.get_candidate_cluster(dense_one_regions, log))
 
-            cands = [self.get_candidate_cluster(one_region, lg) for lg in full_logs]
-            for c in cands:
-                key = tuple(c)
-                if key in cand_dict:
-                    cand_dict[key].append(idx)
-                elif key != ():
-                    cand_dict[key] = [idx]
-
-        for key in list(cand_dict.keys()):
-            if len(cand_dict[key]) < self.min_sup * 2:
-                del cand_dict[key]
-
-            attributes = [self.get_interval(attr) for attr in key]
-            for near_key in list(product(*attributes)):
-                if (near_key in cand_dict) and (len(cand_dict[key]) < len(cand_dict[near_key])):
-                    del cand_dict[key]
-                    break
+            if candidate in cand_dict:
+                cand_dict[candidate] = cand_dict[candidate] + 1
+            elif candidate is not ():
+                cand_dict[candidate] = 1
 
         clusters = []
-        if not info:
-            clusters = []
-            for key in cand_dict.keys():
-                if self.is_time(key[0]):
-                    clusters.append((('time', self.ang_to_min(key[0][1])), ) + key[1:])
-                else:
-                    clusters.append(key)
-        else:
-            for key in cand_dict.keys():
-                contribute = [logs[idx] for idx in set(cand_dict[key])]
-                clusters.append(self.add_info(contribute, key))
+        for key in cand_dict.keys():
+            if cand_dict[key] >= self.min_sup:
+                clusters.append(key)
+
+        # for idx, log in enumerate(logs):
+        #     attributes = [self.get_interval(attr) for attr in log]
+        #     full_logs = list(product(*attributes))
+        #
+        #     cands = [self.get_candidate_cluster(one_region, lg) for lg in full_logs]
+        #     for c in cands:
+        #         key = tuple(c)
+        #         if key in cand_dict:
+        #             cand_dict[key].append(idx)
+        #         elif key != ():
+        #             cand_dict[key] = [idx]
+        #
+        # for key in list(cand_dict.keys()):
+        #     if len(cand_dict[key]) < self.min_sup * 2:
+        #         del cand_dict[key]
+        #
+        #     attributes = [self.get_interval(attr) for attr in key]
+        #     for near_key in list(product(*attributes)):
+        #         if (near_key in cand_dict) and (len(cand_dict[key]) < len(cand_dict[near_key])):
+        #             del cand_dict[key]
+        # #             break
+        #
+        # clusters = []
+        # if not info:
+        #     clusters = []
+        #     for key in cand_dict.keys():
+        #         if self.is_time(key[0]):
+        #             clusters.append((('time', self.ang_to_min(key[0][1])), ) + key[1:])
+        #         else:
+        #             clusters.append(key)
+        # else:
+        #     for key in cand_dict.keys():
+        #         contribute = [logs[idx] for idx in set(cand_dict[key])]
+        #         clusters.append(self.add_info(contribute, key))
 
         return clusters
 
@@ -257,7 +269,7 @@ class SelfAutomation:
 
         return dense_regions
 
-    # get dense regions of numeric type features
+    # get dense regions of numeric type attribute
     def get_numeric_regions(self, values):
         dense_regions = []
 
@@ -299,31 +311,6 @@ class SelfAutomation:
 
         return dense_regions
 
-    # returns acceptable region
-    def get_interval(self, point):
-        if self.is_time(point):
-            if type(point[1]) is str:
-                time = self.time_to_ang(point[1])
-            else:
-                time = point[1]
-            start = round((time - self.time_err) % 360)
-            end = round((time + self.time_err) % 360)
-            if start <= end:
-                region = [('time', x) for x in range(start, end + 1)]
-            else:
-                region = [('time', x) for x in range(start, 360)]
-                region = region + [('time', x) for x in range(0, end + 1)]
-            region.append(('time', round(time)))
-        elif self.is_int(point):
-            start = point[1] - self.int_err
-            end = point[1] + self.int_err
-            region = [(point[0], x) for x in range(start, end + 1)]
-            region.append(point)
-        else:   # when point has string value
-            region = [point, point]
-
-        return region
-
     # append additional information to cluster
     def add_info(self, logs, center):
         data = self.logs_to_dict(logs)
@@ -349,15 +336,55 @@ class SelfAutomation:
 
         return tuple(new_center)
 
-    # return candidate cluster
-    # time attribute has angle form
-    @staticmethod
-    def get_candidate_cluster(regions, log):
-        candidate = []
-        for point in log:
-            if point in regions:
-                candidate.append(point)
-        return candidate
+    # return cluster candidate
+    def get_candidate_cluster(self, dense_one_regions, log):
+        def binary_search(start, end):
+            if start >= end:    # no interval
+                return -1
+
+            cur = int((start + end) / 2)
+
+            if intervals[cur][0] <= val <= intervals[cur][-1]:
+                return cur
+            elif val < intervals[cur][0]:
+                return binary_search(start, cur)
+            else:    # intervals[cur][1] <= val
+                return binary_search(cur + 1, end)
+
+        cluster = []
+
+        for attr in log:
+            key = attr[0]
+            val = attr[1]
+
+            if self.is_time(attr):
+                if 'time' in dense_one_regions:
+                    t_intervals = dense_one_regions['time']
+                    val = self.time_to_ang(val)
+                    if t_intervals[-1][0] > t_intervals[-1][-1]:
+                        if val <= t_intervals[-1][-1] or t_intervals[-1][0] <= val:
+                            cluster.append(('time', (t_intervals[-1][0], t_intervals[-1][-1])))
+                            continue
+                        else:
+                            intervals = t_intervals[0:-1]
+                    else:
+                        intervals = t_intervals
+                    idx = binary_search(0, len(intervals))
+                    if idx != -1:
+                        cluster.append(('time', (intervals[idx][0], intervals[idx][-1])))
+
+            elif self.is_int(attr):
+                if key in dense_one_regions:
+                    intervals = dense_one_regions[key]
+                    idx = binary_search(0, len(intervals))
+                    if idx != -1:
+                        cluster.append((key, (intervals[idx][0], intervals[idx][-1])))
+
+            else:   # string type attribute
+                if (key in dense_one_regions) and (val in dense_one_regions[key]):
+                    cluster.append((key, val))
+
+        return cluster
 
     # return usage log as a dictionary
     @staticmethod
