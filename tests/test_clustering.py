@@ -117,30 +117,6 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual(['active', 'inactive'], self.automation.get_string_regions(values))
 
-    def test_add_info(self):
-        # add time interval information
-        logs = [[('timestamp', '2022-01-01T17:50:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:10:00.000Z')]]
-        center = (('time', 270), )
-        ret = self.automation.add_info(logs, center)
-
-        self.assertEqual((('time', ('18:00', ('17:50', '18:10'))), ), ret)
-
-        # add median information
-        logs = [[('sen', 28)], [('sen', 30)], [('sen', 35)]]
-        center = (('sen', 30),)
-        ret = self.automation.add_info(logs, center)
-
-        self.assertEqual((('sen', (30, 31)),), ret)
-
-        # no additional information
-        logs = [[('sen', 'act')], [('sen', 'act')], [('sen', 'act')]]
-        center = (('sen', 'act'),)
-        ret = self.automation.add_info(logs, center)
-
-        self.assertEqual((('sen', 'act'), ), ret)
-
     def test_get_candidate_cluster(self):
         func = self.automation.get_candidate_cluster
 
@@ -207,7 +183,8 @@ class TestClustering(unittest.TestCase):
         self.assertEqual([(('dev', 'active'), )], ret)
 
     def test_cluster_log_int(self):
-        self.automation.int_err = 5
+        self.automation.int_err = 3
+        self.automation.min_sup = 3
 
         # integer attribute
         logs = [[('dev', 50)], [('dev', 50)], [('dev', 50)]]
@@ -221,24 +198,27 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual([], ret)
 
-        # nearby value increases point
-        logs = [[('dev', 49)], [('dev', 50)], [('dev', 50)], [('dev', 51)]]
-        ret = self.automation.cluster_log(logs)
-
-        self.assertEqual([(('dev', 50),)], ret)
-
-        # report most dominant value
-        logs = [[('dev', 50)], [('dev', 50)], [('dev', 50)], [('dev', 50)], [('dev', 50)], [('dev', 50)]]
+        # report most frequent value
+        logs = [[('dev', 48)], [('dev', 50)], [('dev', 50)], [('dev', 50)], [('dev', 50)], [('dev', 51)]]
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual([(('dev', 50), )], ret)
 
+        # breaking tie
+        logs = [[('dev', 48)], [('dev', 48)], [('dev', 49)], [('dev', 49)], [('dev', 50)], [('dev', 51)]]
+        ret = self.automation.cluster_log(logs)
+
+        self.assertEqual([(('dev', 49), )], ret)
+
     def test_cluster_log_time(self):
+        self.automation.min_sup = 3
+        self.automation.time_err = 3.75
+
         # time attribute
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T12:00:00.000Z')], [('timestamp', '2022-01-01T12:00:00.000Z')]]
+        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
+                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
+                [('timestamp', '2022-01-05T18:00:00.000Z')], [('timestamp', '2022-01-06T18:00:00.000Z')],
+                [('timestamp', '2022-01-07T12:00:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual([(('time', '18:00'), )], ret)
@@ -248,9 +228,21 @@ class TestClustering(unittest.TestCase):
                 [('timestamp', '2022-01-01T00:01:00.000Z')], [('timestamp', '2022-01-01T00:01:00.000Z')]]
         ret = self.automation.cluster_log(logs)
 
+        self.assertEqual([(('time', '23:59'), )], ret)
+
+        # process 24:00 = 00:00 case & breaking tie
+        logs = [[('timestamp', '2022-01-01T23:55:00.000Z')], [('timestamp', '2022-01-02T23:55:00.000Z')],
+                [('timestamp', '2022-01-03T00:00:00.000Z')], [('timestamp', '2022-01-01T00:00:00.000Z')],
+                [('timestamp', '2022-01-05T00:05:00.000Z')], [('timestamp', '2022-01-06T00:05:00.000Z')]]
+        ret = self.automation.cluster_log(logs)
+
         self.assertEqual([(('time', '00:00'), )], ret)
 
     def test_cluster_log_info(self):
+        self.automation.min_sup = 3
+        self.automation.int_err = 5
+        self.automation.time_err = 3.75
+
         # add time interval information
         logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
                 [('timestamp', '2022-01-01T18:00:00.000Z')]]

@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from datetime import datetime
+from collections import Counter
 
 
 # generate rule and mode from logs
@@ -9,9 +10,9 @@ class SelfAutomation:
         # set log directory and hyperparameters
         self.input_dir = input_dir
         if param is None:
-            self.min_sup = 5     # minimum support
-            self.time_err = 3.75    # acceptable error of time attribute as an angle, equivalent to 15 minutes
-            self.int_err = 5    # acceptable error of integer attribute
+            self.min_sup = 5  # minimum support
+            self.time_err = 3.75  # acceptable error of time attribute as an angle, equivalent to 15 minutes
+            self.int_err = 5  # acceptable error of integer attribute
         else:
             self.min_sup = param['min_sup']
             self.time_err = param['time_err']
@@ -89,7 +90,7 @@ class SelfAutomation:
         start = query[1][1][0]
         end = query[1][1][1]
         return {'between': {'value': {'time': {'reference': 'Now'}},
-                            'start': {'time': {'hour':  int(start[0:2]), 'minute': int(start[3:5])}},
+                            'start': {'time': {'hour': int(start[0:2]), 'minute': int(start[3:5])}},
                             'end': {'time': {'hour': int(end[0:2]), 'minute': int(end[3:5])}}}}
 
     # return integer related operation
@@ -150,6 +151,48 @@ class SelfAutomation:
 
     # return representative logs based on apriori algorithm
     def cluster_log(self, logs, info=False):
+        def find_interval(k, start, end, target):
+            if start >= end:  # no interval
+                return -1
+
+            cur = int((start + end) / 2)
+
+            if dense_one_regions[k][cur][0] == target:
+                return cur
+            elif target < dense_one_regions[k][cur][0]:
+                return find_interval(k, start, cur, target)
+            else:  # dense_one_regions[k][cur][-1] < target
+                return find_interval(k, cur + 1, end, target)
+
+        def most_frequent(ary, is_time=False):
+            if is_time and ary[0] > ary[-1]:
+                new_ary = []
+                for v in ary:
+                    new_ary.append(v-ary[0])
+                    if v < ary[0]:
+                        new_ary[-1] += 360
+                return (most_frequent(new_ary) + ary[0]) % 360
+
+            ret = []
+
+            c = Counter(ary)
+            max_freq = max(c.values())
+            for k in c:
+                if c[k] == max_freq:
+                    ret.append(k)
+
+            if len(ret) == 1:
+                return ret[0]
+            else:
+                mean = np.mean(ary)
+                mn = 9999
+                val = None
+                for r in c:
+                    if abs(r - mean) < mn:
+                        mn = abs(r-mean)
+                        val = r
+                return val
+
         dense_one_regions = self.get_dense_region(logs)
 
         cand_dict = {}
@@ -164,42 +207,29 @@ class SelfAutomation:
         clusters = []
         for key in cand_dict.keys():
             if cand_dict[key] >= self.min_sup:
-                clusters.append(key)
-
-        # for idx, log in enumerate(logs):
-        #     attributes = [self.get_interval(attr) for attr in log]
-        #     full_logs = list(product(*attributes))
-        #
-        #     cands = [self.get_candidate_cluster(one_region, lg) for lg in full_logs]
-        #     for c in cands:
-        #         key = tuple(c)
-        #         if key in cand_dict:
-        #             cand_dict[key].append(idx)
-        #         elif key != ():
-        #             cand_dict[key] = [idx]
-        #
-        # for key in list(cand_dict.keys()):
-        #     if len(cand_dict[key]) < self.min_sup * 2:
-        #         del cand_dict[key]
-        #
-        #     attributes = [self.get_interval(attr) for attr in key]
-        #     for near_key in list(product(*attributes)):
-        #         if (near_key in cand_dict) and (len(cand_dict[key]) < len(cand_dict[near_key])):
-        #             del cand_dict[key]
-        # #             break
-        #
-        # clusters = []
-        # if not info:
-        #     clusters = []
-        #     for key in cand_dict.keys():
-        #         if self.is_time(key[0]):
-        #             clusters.append((('time', self.ang_to_min(key[0][1])), ) + key[1:])
-        #         else:
-        #             clusters.append(key)
-        # else:
-        #     for key in cand_dict.keys():
-        #         contribute = [logs[idx] for idx in set(cand_dict[key])]
-        #         clusters.append(self.add_info(contribute, key))
+                # format cluster
+                center = []
+                for attr in key:
+                    if self.is_time(attr):
+                        idx = find_interval(attr[0], 0, len(dense_one_regions[attr[0]]), attr[1][0])
+                        interval = dense_one_regions[attr[0]][idx]
+                        common = most_frequent(interval, True)
+                        if not info:
+                            center.append(('time', self.ang_to_min(common)))
+                        else:
+                            center.append(('time', (self.ang_to_min(common),
+                                                    (self.ang_to_min(interval[0]), self.ang_to_min(interval[-1])))))
+                    elif self.is_int(attr):
+                        idx = find_interval(attr[0], 0, len(dense_one_regions[attr[0]]), attr[1][0])
+                        interval = dense_one_regions[attr[0]][idx]
+                        common = most_frequent(interval)
+                        if not info:
+                            center.append((attr[0], common))
+                        else:
+                            center.append((attr[0], (common, np.mean(interval))))
+                    else:  # string attribute
+                        center.append(attr)
+                clusters.append(tuple(center))
 
         return clusters
 
@@ -217,7 +247,7 @@ class SelfAutomation:
                 dense_regions = self.get_time_regions(val)
             elif self.is_int((key, val[0])):
                 dense_regions = self.get_numeric_regions(val)
-            else:   # string features
+            else:  # string features
                 dense_regions = self.get_string_regions(val)
 
             if len(dense_regions) > 0:
@@ -257,13 +287,13 @@ class SelfAutomation:
             end_time = interval[-1] + self.time_err
             if end_time >= 360 and (end_time - 360) >= first_interval[0]:
                 if len(first_interval) + len(interval) >= self.min_sup:
-                    dense_regions.append(interval+first_interval)   # add merged interval to dense_regions
+                    dense_regions.append(interval + first_interval)  # add merged interval to dense_regions
             else:
                 if len(first_interval) >= self.min_sup:
                     dense_regions.insert(0, first_interval)
                 if len(interval) >= self.min_sup:
                     dense_regions.append(interval)
-        else:   # first_interval is None
+        else:  # first_interval is None
             if len(interval) >= self.min_sup:
                 dense_regions.append(interval)
 
@@ -311,35 +341,10 @@ class SelfAutomation:
 
         return dense_regions
 
-    # append additional information to cluster
-    def add_info(self, logs, center):
-        data = self.logs_to_dict(logs)
-
-        ret = {}
-        for k, v in data.items():
-            if k == 'timestamp':
-                ret['time'] = self.time_info(v)
-            elif type(v[0]) == int:
-                me = self.int_info(v)
-                ret[k] = round(me, 2)
-
-        new_center = []
-        for query in center:
-            if self.is_time(query):
-                value = (self.ang_to_min(query[1]), ret['time'])
-                new_center.append(('time', value))
-            elif self.is_int(query):
-                value = (query[1], ret[query[0]])
-                new_center.append((query[0], value))
-            else:
-                new_center.append(query)
-
-        return tuple(new_center)
-
     # return cluster candidate
     def get_candidate_cluster(self, dense_one_regions, log):
         def binary_search(start, end):
-            if start >= end:    # no interval
+            if start >= end:  # no interval
                 return -1
 
             cur = int((start + end) / 2)
@@ -348,7 +353,7 @@ class SelfAutomation:
                 return cur
             elif val < intervals[cur][0]:
                 return binary_search(start, cur)
-            else:    # intervals[cur][1] <= val
+            else:  # intervals[cur][1] <= val
                 return binary_search(cur + 1, end)
 
         cluster = []
@@ -380,7 +385,7 @@ class SelfAutomation:
                     if idx != -1:
                         cluster.append((key, (intervals[idx][0], intervals[idx][-1])))
 
-            else:   # string type attribute
+            else:  # string type attribute
                 if (key in dense_one_regions) and (val in dense_one_regions[key]):
                     cluster.append((key, val))
 
@@ -410,7 +415,7 @@ class SelfAutomation:
             for k, v in lg.items():
                 if type(v) is list:
                     for idx, elem in enumerate(v):
-                        lg_list.append((k+":"+str(idx), elem))
+                        lg_list.append((k + ":" + str(idx), elem))
                 elif k != 'command':
                     lg_list.append((k, v))
 
@@ -473,20 +478,3 @@ class SelfAutomation:
         minute = dt.hour * 60 + dt.minute
 
         return minute / 4
-
-    # return minimum and maximum of time
-    @staticmethod
-    def time_info(logs):
-        # convert minutes to angle
-        angles = [SelfAutomation.time_to_ang(m) for m in logs]
-
-        min_t = SelfAutomation.ang_to_min(min(angles))
-        max_t = SelfAutomation.ang_to_min(max(angles))
-
-        return min_t, max_t
-
-    # return mean of integer values
-    @staticmethod
-    def int_info(logs):
-        return np.mean(logs)
-
