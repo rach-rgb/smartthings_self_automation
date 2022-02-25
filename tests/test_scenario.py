@@ -75,39 +75,22 @@ class TestScenario(unittest.TestCase):
         file_names = self.automation.run('sensor_str.json')
         result_1 = SelfAutomation.read_log('./output/sensor_str_on_rule.json')
         gt_1 = SelfAutomation.read_log('answer/sensor_str_on_rule.json')
-        result_2 = SelfAutomation.read_log('./output/sensor_str_off0_rule.json')
-        gt_2 = SelfAutomation.read_log('./answer/sensor_str_off0_rule.json')
-        result_3 = SelfAutomation.read_log('./output/sensor_str_off1_rule.json')
-        gt_3 = SelfAutomation.read_log('./answer/sensor_str_off1_rule.json')
+        result_2 = SelfAutomation.read_log('./output/sensor_str_off_rule.json')
+        gt_2 = SelfAutomation.read_log('./answer/sensor_str_off_rule.json')
 
-        self.assertEqual(3, len(file_names))
+        self.assertEqual(2, len(file_names))
         self.assertEqual(gt_1, result_1)
-
-        self.assertEqual(gt_2, result_3)
-        if gt_2 == result_2:
-            self.assertEqual(gt_3, result_3)
-        elif gt_3 == result_2:
-            self.assertEqual(gt_2, result_3)
-        else:
-            self.assertTrue(0)
+        self.assertEqual(gt_2, result_2)
 
     # related device holds more than one value
     def test_sensor_complex(self):
-        file_names = self.automation.run('sensor_complex.json')
-        result_1 = SelfAutomation.read_log('./output/sensor_complex_on0_rule.json')
-        gt_1 = SelfAutomation.read_log('answer/sensor_complex_on0_rule.json')
-        result_2 = SelfAutomation.read_log('./output/sensor_complex_on1_rule.json')
-        gt_2 = SelfAutomation.read_log('answer/sensor_complex_on1_rule.json')
+        self.automation.run('sensor_complex.json')
+        result = SelfAutomation.read_log('./output/sensor_complex_on_rule.json')
+        gt = SelfAutomation.read_log('answer/sensor_complex_on_rule.json')
 
-        self.assertEqual(2, len(file_names))
-        if gt_1 == result_1:
-            self.assertEqual(gt_2, result_2)
-        elif gt_2 == result_1:
-            self.assertEqual(gt_1, result_2)
-        else:
-            self.assertTrue(0)
+        self.assertEqual(gt, result)
 
-    # related device holds more than one value
+    # there are two devices
     def test_multiple_neighbor(self):
         file_names = self.automation.run('multiple_neighbor.json')
         result_1 = SelfAutomation.read_log('./output/multiple_neighbor_on_rule.json')
