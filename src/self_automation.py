@@ -6,17 +6,19 @@ from collections import Counter
 
 # generate rule and mode from logs
 class SelfAutomation:
+    INTMAX = 987654321
+
     def __init__(self, input_dir='./logs/', param=None):
         # set log directory and hyperparameters
         self.input_dir = input_dir
         if param is None:
             self.min_sup = 5  # minimum support
-            self.time_err = 3.75  # acceptable error of time attribute as an angle, equivalent to 15 minutes
-            self.int_err = 5  # acceptable error of integer attribute
+            self.time_err = 3.75  # acceptable error of time component as an angle, equivalent to 15 minutes
+            self.num_err = 5  # acceptable error of integer component
         else:
             self.min_sup = param['min_sup']
             self.time_err = param['time_err']
-            self.int_err = param['int_err']
+            self.num_err = param['int_err']
 
     # export self-generated rules and return file names of exported rules as a list
     # file_in: directory to read logs, dir_out: directory to save generated rules
@@ -52,6 +54,7 @@ class SelfAutomation:
 
         return file_names
 
+    # Rule Generating
     # return rule built from data and cluster
     def generate_rule(self, data, cluster, cmd):
         neigh_dict = {n['device']: n for n in data['neighbors']}
@@ -93,10 +96,10 @@ class SelfAutomation:
                             'start': {'time': {'hour': int(start[0:2]), 'minute': int(start[3:5])}},
                             'end': {'time': {'hour': int(end[0:2]), 'minute': int(end[3:5])}}}}
 
-    # return integer related operation
+    # return numerical related operation
     # query given with ('device', (cluster, mean))
     @staticmethod
-    def integer_operation(query, attr):
+    def numeric_operation(query, attr):
         if query[1][0] < query[1][1]:
             # use 'greater_than' syntax if center <= mean
             op = 'greater_than'
@@ -131,9 +134,9 @@ class SelfAutomation:
                 operations.append(self.time_operation(q))
             else:
                 info = q[0].split(':')
-                attr = devices[info[0]]['value'][int(info[1])]['attribute']
-                if self.is_int(q):
-                    operations.append(self.integer_operation(q, attr))
+                attr = devices[info[0]]['value'][int(info[1])]['attribute'] # retrieve device information
+                if self.is_numeric(q):
+                    operations.append(self.numeric_operation(q, attr))
                 else:
                     operations.append(self.string_operation(q, attr))
 
@@ -149,49 +152,22 @@ class SelfAutomation:
 
         return action
 
-    # return representative logs based on apriori algorithm
+    # Log Clustering
+    # return representative logs based on SLCT algorithm
     def cluster_log(self, logs, info=False):
-        def find_interval(k, start, end, target):
+        # return index of val using start of interval
+        def find_interval(key, start, end, target):
             if start >= end:  # no interval
                 return -1
 
             cur = int((start + end) / 2)
 
-            if dense_one_regions[k][cur][0] == target:
+            if dense_one_regions[key][cur][0] == target:
                 return cur
-            elif target < dense_one_regions[k][cur][0]:
-                return find_interval(k, start, cur, target)
+            elif target < dense_one_regions[key][cur][0]:
+                return find_interval(key, start, cur, target)
             else:  # dense_one_regions[k][cur][-1] < target
-                return find_interval(k, cur + 1, end, target)
-
-        def most_frequent(ary, is_time=False):
-            if is_time and ary[0] > ary[-1]:
-                new_ary = []
-                for v in ary:
-                    new_ary.append(v-ary[0])
-                    if v < ary[0]:
-                        new_ary[-1] += 360
-                return (most_frequent(new_ary) + ary[0]) % 360
-
-            ret = []
-
-            c = Counter(ary)
-            max_freq = max(c.values())
-            for k in c:
-                if c[k] == max_freq:
-                    ret.append(k)
-
-            if len(ret) == 1:
-                return ret[0]
-            else:
-                mean = np.mean(ary)
-                mn = 9999
-                val = None
-                for r in c:
-                    if abs(r - mean) < mn:
-                        mn = abs(r-mean)
-                        val = r
-                return val
+                return find_interval(key, cur + 1, end, target)
 
         dense_one_regions = self.get_dense_region(logs)
 
@@ -205,47 +181,46 @@ class SelfAutomation:
                 cand_dict[candidate] = 1
 
         clusters = []
-        for key in cand_dict.keys():
-            if cand_dict[key] >= self.min_sup:
+        for candidate in cand_dict.keys():
+            if cand_dict[candidate] >= self.min_sup:
                 # format cluster
                 center = []
-                for attr in key:
-                    if self.is_time(attr):
-                        idx = find_interval(attr[0], 0, len(dense_one_regions[attr[0]]), attr[1][0])
-                        interval = dense_one_regions[attr[0]][idx]
-                        common = most_frequent(interval, True)
+                for comp in candidate:
+                    if self.is_time(comp):
+                        idx = find_interval(comp[0], 0, len(dense_one_regions[comp[0]]), comp[1][0])
+                        intv = dense_one_regions[comp[0]][idx]
+                        common = self.most_frequent(intv, True)
                         if not info:
-                            center.append(('time', self.ang_to_min(common)))
+                            center.append(('time', self.ang_to_time(common)))
                         else:
-                            center.append(('time', (self.ang_to_min(common),
-                                                    (self.ang_to_min(interval[0]), self.ang_to_min(interval[-1])))))
-                    elif self.is_int(attr):
-                        idx = find_interval(attr[0], 0, len(dense_one_regions[attr[0]]), attr[1][0])
-                        interval = dense_one_regions[attr[0]][idx]
-                        common = most_frequent(interval)
+                            center.append(('time', (self.ang_to_time(common),
+                                                    (self.ang_to_time(intv[0]), self.ang_to_time(intv[-1])))))
+                    elif self.is_numeric(comp):
+                        idx = find_interval(comp[0], 0, len(dense_one_regions[comp[0]]), comp[1][0])
+                        intv = dense_one_regions[comp[0]][idx]
+                        common = self.most_frequent(intv)
                         if not info:
-                            center.append((attr[0], common))
+                            center.append((comp[0], common))
                         else:
-                            center.append((attr[0], (common, np.mean(interval))))
-                    else:  # string attribute
-                        center.append(attr)
+                            center.append((comp[0], (common, np.mean(intv))))
+                    else:  # string component
+                        center.append(comp)
                 clusters.append(tuple(center))
 
         return clusters
 
     # return dense 1-region dictionary
-    # key: category name of attribute, value: list of dense region
+    # key: name of component, value: list of dense region
     def get_dense_region(self, logs):
         dense_one_dict = {}
 
-        # key: category of attribute, val: list of corresponding values
         for key, val in self.logs_to_dict(logs).items():
             category = key
 
             if self.is_time((key, val[0])):
                 category = 'time'
                 dense_regions = self.get_time_regions(val)
-            elif self.is_int((key, val[0])):
+            elif self.is_numeric((key, val[0])):
                 dense_regions = self.get_numeric_regions(val)
             else:  # string features
                 dense_regions = self.get_string_regions(val)
@@ -255,71 +230,68 @@ class SelfAutomation:
 
         return dense_one_dict
 
-    # get dense regions of time features
-    def get_time_regions(self, values):
+    # return dense 1-regions of time components
+    def get_time_regions(self, components):
         dense_regions = []
 
-        angles = sorted([self.time_to_ang(v) for v in values])
+        angles = sorted(components)
 
-        # count frequency of interval
+        # count frequency of each interval
+        first_intv = None
         prev = angles[0]
-        first_interval = None
-        interval = []
+        intv = []
         for v in angles:
-            if v <= prev + self.time_err:  # contain in same interval
-                # update values
+            if v <= prev + self.time_err:  # belongs to same interval
                 prev = v
-                interval.append(v)
-            else:  # starts new interval
-                if interval[0] == angles[0]:  # keep result
-                    first_interval = interval
-                    prev = v
-                    interval = [v]
-                    continue
-
-                if len(interval) >= self.min_sup:  # add interval to dense region
-                    dense_regions.append(interval)
+                intv.append(v)
+            else:  # create new interval
+                if intv[0] == angles[0]:  # keep information of first interval
+                    first_intv = intv
+                elif len(intv) >= self.min_sup:  # add interval to dense region
+                    dense_regions.append(intv)
                 prev = v
-                interval = [v]
+                intv = [v]
 
         # process first and last interval
-        if first_interval is not None:
-            end_time = interval[-1] + self.time_err
-            if end_time >= 360 and (end_time - 360) >= first_interval[0]:
-                if len(first_interval) + len(interval) >= self.min_sup:
-                    dense_regions.append(interval + first_interval)  # add merged interval to dense_regions
+        if first_intv is not None:
+            end = intv[-1] + self.time_err  # end of last interval
+            # first interval and last interval need to be merged
+            if end >= 360 and (end - 360) >= first_intv[0]:
+                if len(first_intv) + len(intv) >= self.min_sup:
+                    dense_regions.append(intv + first_intv)
             else:
-                if len(first_interval) >= self.min_sup:
-                    dense_regions.insert(0, first_interval)
-                if len(interval) >= self.min_sup:
-                    dense_regions.append(interval)
-        else:  # first_interval is None
-            if len(interval) >= self.min_sup:
-                dense_regions.append(interval)
+                if len(first_intv) >= self.min_sup:
+                    dense_regions.insert(0, first_intv)
+                if len(intv) >= self.min_sup:
+                    dense_regions.append(intv)
+        else:   # found only one interval in components
+            if len(intv) >= self.min_sup:
+                dense_regions.append(intv)
 
         return dense_regions
 
-    # get dense regions of numeric type attribute
-    def get_numeric_regions(self, values):
+    # get dense regions of numeric type component
+    def get_numeric_regions(self, components):
         dense_regions = []
 
-        # sort list
-        values = sorted(values)
-        values.append(values[-1] + 999999)
+        components = sorted(components)
+        components.append(components[-1] + SelfAutomation.INTMAX)
 
-        # count frequency of interval
-        prev = values[0]
-        interval = []
-        for v in values:
-            if v <= prev + self.int_err:  # contain in same interval
-                # update values
+        # count frequency of each interval
+        prev = components[0]
+        intv = []
+        for v in components:
+            if v <= prev + self.num_err:  # belongs to same interval
                 prev = v
-                interval.append(v)
-            else:  # starts new interval
-                if len(interval) >= self.min_sup:  # add interval to dense region
-                    dense_regions.append(interval)
+                intv.append(v)
+            else:  # create new interval
+                if len(intv) >= self.min_sup:  # add interval to dense region
+                    dense_regions.append(intv)
                 prev = v
-                interval = [v]
+                intv = [v]
+
+        if len(intv) >= self.min_sup:
+            dense_regions.append(intv)
 
         return dense_regions
 
@@ -327,71 +299,97 @@ class SelfAutomation:
     def get_string_regions(self, values):
         dense_regions = []
 
-        # count frequency
-        freq = {}
-        for v in values:
-            if v in freq:
-                freq[v] = freq[v] + 1
-            else:
-                freq[v] = 1
+        c = Counter(values)
 
-        for k, v in freq.items():
+        for k, v in c.items():
             if v >= self.min_sup:
                 dense_regions.append(k)
 
         return dense_regions
 
     # return cluster candidate
-    def get_candidate_cluster(self, dense_one_regions, log):
-        def binary_search(start, end):
+    # time and numeric component returns dense region as interval
+    def get_candidate_cluster(self, dense_regions, log):
+        # return index of interval containing val
+        def find_intv(start, end):
             if start >= end:  # no interval
                 return -1
 
             cur = int((start + end) / 2)
 
-            if intervals[cur][0] <= val <= intervals[cur][-1]:
+            if regions[cur][0] <= val <= regions[cur][-1]:
                 return cur
-            elif val < intervals[cur][0]:
-                return binary_search(start, cur)
-            else:  # intervals[cur][1] <= val
-                return binary_search(cur + 1, end)
+            elif val < regions[cur][0]:
+                return find_intv(start, cur)
+            else:
+                return find_intv(cur + 1, end)
 
-        cluster = []
+        candidate = []
 
-        for attr in log:
-            key = attr[0]
-            val = attr[1]
+        for comp in log:
+            key = comp[0]
+            val = comp[1]
 
-            if self.is_time(attr):
-                if 'time' in dense_one_regions:
-                    t_intervals = dense_one_regions['time']
-                    val = self.time_to_ang(val)
-                    if t_intervals[-1][0] > t_intervals[-1][-1]:
-                        if val <= t_intervals[-1][-1] or t_intervals[-1][0] <= val:
-                            cluster.append(('time', (t_intervals[-1][0], t_intervals[-1][-1])))
+            if self.is_time(comp):
+                if 'time' in dense_regions:
+                    total_regions = dense_regions['time']   # entire regions for time component
+                    if total_regions[-1][0] > total_regions[-1][-1]:    # last interval is date changing interval
+                        if val <= total_regions[-1][-1] or total_regions[-1][0] <= val:
+                            candidate.append(('time', (total_regions[-1][0], total_regions[-1][-1])))
                             continue
                         else:
-                            intervals = t_intervals[0:-1]
+                            regions = total_regions[0:-1]   # remove date changing interval
                     else:
-                        intervals = t_intervals
-                    idx = binary_search(0, len(intervals))
+                        regions = total_regions
+                    idx = find_intv(0, len(regions))
                     if idx != -1:
-                        cluster.append(('time', (intervals[idx][0], intervals[idx][-1])))
-
-            elif self.is_int(attr):
-                if key in dense_one_regions:
-                    intervals = dense_one_regions[key]
-                    idx = binary_search(0, len(intervals))
+                        candidate.append(('time', (regions[idx][0], regions[idx][-1])))
+            elif self.is_numeric(comp):
+                if key in dense_regions:
+                    regions = dense_regions[key]
+                    # find interval
+                    idx = find_intv(0, len(regions))
                     if idx != -1:
-                        cluster.append((key, (intervals[idx][0], intervals[idx][-1])))
+                        candidate.append((key, (regions[idx][0], regions[idx][-1])))
+            else:  # string type component
+                if (key in dense_regions) and (val in dense_regions[key]):
+                    candidate.append((key, val))
 
-            else:  # string type attribute
-                if (key in dense_one_regions) and (val in dense_one_regions[key]):
-                    cluster.append((key, val))
+        return candidate
 
-        return cluster
+    # return most frequent value in ary
+    # if tie exists, return the value which is closest to mean
+    @staticmethod
+    def most_frequent(ary, is_time=False):
+        if is_time and ary[0] > ary[-1]:    # date changing interval
+            new_ary = []
+            for v in ary:
+                new_ary.append(v-ary[0])
+                if v < ary[0]:
+                    new_ary[-1] += 360
+            return (SelfAutomation.most_frequent(new_ary) + ary[0]) % 360
 
-    # return usage log as a dictionary
+        cands = []
+
+        c = Counter(ary)
+        for key in c:
+            if c[key] == max(c.values()):
+                cands.append(key)
+
+        if len(cands) == 1:
+            return cands[0]
+        else:
+            mean = np.mean(ary)
+            diff = SelfAutomation.INTMAX
+            val = None
+            for v in cands:
+                if abs(v - mean) < diff:
+                    diff = abs(v-mean)
+                    val = v
+            return val
+
+    # Helper Functions
+    # return device usage logs as a dictionary
     @staticmethod
     def read_log(file_name):
         try:
@@ -402,79 +400,73 @@ class SelfAutomation:
             print(e)
             return None
 
-    # return a dictionary of logs,
-    # using 'command' as a key and a list of corresponding logs as a value
+    # return a dictionary of formatted logs
+    # key: command, 'value': list of corresponding logs
     @staticmethod
     def cls_log(logs):
-        log_cls_cmd = {}
-        for lg in logs:
-            cmd = lg['command']
+        log_cmd_dict = {}
+        for log in logs:
+            cmd = log['command']
 
-            # exclude value of 'command' from list
-            lg_list = []
-            for k, v in lg.items():
-                if type(v) is list:
+            new_log = []
+            for k, v in log.items():
+                # convert time component to angle representation
+                if SelfAutomation.is_time([k, v]):
+                    new_log.append(('time', SelfAutomation.time_to_ang(v)))
+                # split the list and name each component as "device_name:index"
+                elif type(v) is list:
                     for idx, elem in enumerate(v):
-                        lg_list.append((k + ":" + str(idx), elem))
+                        new_log.append((k + ":" + str(idx), elem))
+                # remove command component
                 elif k != 'command':
-                    lg_list.append((k, v))
+                    new_log.append((k, v))
 
-            if cmd in log_cls_cmd:
-                log_cls_cmd[cmd].append(lg_list)
+            if cmd in log_cmd_dict:
+                log_cmd_dict[cmd].append(new_log)
             else:
-                log_cls_cmd[cmd] = [lg_list]
+                log_cmd_dict[cmd] = [new_log]
 
-        return log_cls_cmd
+        return log_cmd_dict
 
-    # return a dictionary using a name of an attribute as a key and
-    # a list of corresponding values as a value
+    # return a dictionary summarizing entire input logs
+    # key: name of a component, value: list of values corresponding to a key
     @staticmethod
     def logs_to_dict(logs):
         log_dict = {}
 
-        # create key and value
-        for attr in logs[0]:
-            if type(attr[1]) is list:  # split the list and name each attribute as 'device-name' + count
-                for i in range(0, len(attr[1])):
-                    log_dict[attr[0] + ':' + str(i)] = [attr[1][i]]
-            else:
-                log_dict[attr[0]] = [attr[1]]
+        # register key
+        for comp in logs[0]:
+            log_dict[comp[0]] = [comp[1]]
 
         if len(logs) > 1:
             for log in logs[1:]:
-                for attr in log:
-                    if type(attr[1]) is list:
-                        for i in range(0, len(attr[1])):
-                            log_dict[attr[0] + ':' + str(i)].append(attr[1][i])
-                    else:
-                        log_dict[attr[0]].append(attr[1])
+                for comp in log:
+                    log_dict[comp[0]].append(comp[1])
 
         return log_dict
 
-    # return true if point represents time attribute
+    # return true if point represents time component
     @staticmethod
     def is_time(point):
         return (point[0] == 'timestamp') or (point[0] == 'time')
 
-    # return true if point has integer type value
+    # return true if point represents numerical component
     @staticmethod
-    def is_int(point):
-        return (type(point[1]) == int) or (type(point[1][0]) == int)
+    def is_numeric(point):
+        return isinstance(point[1], (int, float, complex)) or isinstance(point[1][0], (int, float, complex))
 
-    # convert angle as string type time
-    @staticmethod
-    def ang_to_min(angle):
-        day = 24 * 60
-        minute = angle * 4
-        if minute >= day:
-            minute -= day
-        return '%02i:%02i' % divmod(minute, 60)
-
-    # convert string type time to angle
+    # convert string representation of time to angle
     @staticmethod
     def time_to_ang(str_time):
         frmt = '%H:%M'
         dt = datetime.strptime(str_time[11:16], frmt)
-        minute = dt.hour * 60 + dt.minute
 
-        return minute / 4
+        return (dt.hour * 60 + dt.minute) / 4
+
+    # convert angle to string representation of time
+    @staticmethod
+    def ang_to_time(angle):
+        minute = angle * 4
+        if minute >= 1440:
+            minute -= 1440
+        return '%02i:%02i' % divmod(minute, 60)

@@ -37,20 +37,20 @@ class TestRuleGenerating(unittest.TestCase):
 
         self.assertEqual(expect, SelfAutomation.time_operation(query))
 
-    def test_integer_operation(self):
+    def test_numeric_operation(self):
         # when mean < median
         query = ('my-sensor', (30, 40))
         expect = {"greater_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}},
                                    "right": {"integer": 30}}}
 
-        self.assertEqual(expect, SelfAutomation.integer_operation(query, 'temperature'))
+        self.assertEqual(expect, SelfAutomation.numeric_operation(query, 'temperature'))
 
         # when mean > median
         query = ('my-sensor', (30, 20))
         expect = {"less_than": {"left": {"device": {"devices": ["my-sensor"], "attribute": "temperature"}},
                                 "right": {"integer": 30}}}
 
-        self.assertEqual(expect, SelfAutomation.integer_operation(query, 'temperature'))
+        self.assertEqual(expect, SelfAutomation.numeric_operation(query, 'temperature'))
 
     def test_string_operation(self):
         query = ('my-sensor', 'active')

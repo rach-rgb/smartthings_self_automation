@@ -9,32 +9,26 @@ class TestClustering(unittest.TestCase):
         self.automation = SelfAutomation()
 
     def test_get_dense_region(self):
+        conv = SelfAutomation.time_to_ang
+
         self.automation.min_sup = 3
         self.automation.time_err = 3.75
-        self.automation.int_err = 5
-
-        # process timestamp attribute
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
-                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
-                [('timestamp', '2022-01-05T18:00:00.000Z')]]
-        ret = self.automation.get_dense_region(logs)
-
-        self.assertEqual([[270.0, 270.0, 270.0, 270.0, 270.0]], ret['time'])
+        self.automation.num_err = 5
 
         # remove if support < minimum support
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
-                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
-                [('timestamp', '2022-01-05T18:00:00.000Z')], [('timestamp', '2022-01-06T18:00:00.000Z')],
-                [('timestamp', '2022-01-07T12:00:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
+        logs = [[('time', conv('2022-01-01T18:00:00.000Z'))], [('time', conv('2022-01-02T18:00:00.000Z'))],
+                [('time', conv('2022-01-03T18:00:00.000Z'))], [('time', conv('2022-01-04T18:00:00.000Z'))],
+                [('time', conv('2022-01-05T18:00:00.000Z'))], [('time', conv('2022-01-06T18:00:00.000Z'))],
+                [('time', conv('2022-01-07T12:00:00.000Z'))], [('time', conv('2022-01-08T12:00:00.000Z'))]]
         ret = self.automation.get_dense_region(logs)
 
         self.assertEqual([[270.0, 270.0, 270.0, 270.0, 270.0, 270.0]], ret['time'])
 
         # process time feature
-        logs = [[('timestamp', '2022-01-01T17:45:00.000Z')], [('timestamp', '2022-01-02T17:50:00.000Z')],
-                [('timestamp', '2022-01-03T17:55:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
-                [('timestamp', '2022-01-05T18:05:00.000Z')], [('timestamp', '2022-01-06T18:10:00.000Z')],
-                [('timestamp', '2022-01-07T18:15:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
+        logs = [[('time', conv('2022-01-01T17:45:00.000Z'))], [('time', conv('2022-01-02T17:50:00.000Z'))],
+                [('time', conv('2022-01-03T17:55:00.000Z'))], [('time', conv('2022-01-04T18:00:00.000Z'))],
+                [('time', conv('2022-01-05T18:05:00.000Z'))], [('time', conv('2022-01-06T18:10:00.000Z'))],
+                [('time', conv('2022-01-07T18:15:00.000Z'))], [('time', conv('2022-01-08T12:00:00.000Z'))]]
         ret = self.automation.get_dense_region(logs)
 
         self.assertEqual([[266.25, 267.5, 268.75, 270.0, 271.25, 272.5, 273.75]], ret['time'])
@@ -60,37 +54,49 @@ class TestClustering(unittest.TestCase):
         self.assertEqual([[50, 51, 52, 55]], ret['dev'])
 
     def test_get_time_regions(self):
-        self.automation.time_err = 3.75
+        self.automation.time_err = 3.75  # corresponds to 15 minutes
         self.automation.min_sup = 2
 
-        values = ['2022-01-01T17:45:00.000Z', '2022-01-02T17:50:00.000Z', '2022-01-03T18:00:00.000Z',
-                  '2022-01-04T11:00:00.000Z', '2022-01-05T23:50:00.000Z', '2022-01-06T23:45:00.000Z']
-        ret = self.automation.get_time_regions(values)
+        time_comps = ['2022-01-01T17:45:00.000Z', '2022-01-02T17:50:00.000Z', '2022-01-03T18:00:00.000Z',
+                      '2022-01-04T11:00:00.000Z', '2022-01-05T23:50:00.000Z', '2022-01-06T23:45:00.000Z']
+        lst = [self.automation.time_to_ang(v) for v in time_comps]
+        ret = self.automation.get_time_regions(lst)
 
         self.assertEqual(2, len(ret))
         self.assertEqual(3, len(ret[0]))    # 17:45, 17:50, 18:00
         self.assertEqual(2, len(ret[1]))    # 23:45, 23:50
 
-        # merge first and last interval
-        values = ['2022-01-01T18:00:00.000Z', '2022-01-02T18:00:00.000Z',
-                  '2022-01-01T23:50:00.000Z', '2022-01-02T00:00:00.000Z', '2022-01-03T00:10:00.000Z']
-        ret = self.automation.get_time_regions(values)
+        # merge first and last interval and append to end of list
+        time_comps = ['2022-01-01T18:00:00.000Z', '2022-01-02T18:00:00.000Z', '2022-01-01T23:50:00.000Z',
+                      '2022-01-02T00:00:00.000Z', '2022-01-03T00:10:00.000Z']
+        lst = [self.automation.time_to_ang(v) for v in time_comps]
+        ret = self.automation.get_time_regions(lst)
 
         self.assertEqual(2, len(ret))
         self.assertEqual(2, len(ret[0]))    # 18:00, 18:00
         self.assertEqual(3, len(ret[1]))    # 23:50, 00:00, 00:10
 
         # don't merge first and last interval
-        values = ['2022-01-01T00:05:00.000Z', '2022-01-02T00:10:00.000Z', '2022-01-03T00:13:00.000Z',
-                  '2022-01-04T23:45:00.000Z', '2022-01-05T23:44:00.000Z', '2022-01-06T23:42:00.000Z']
-        ret = self.automation.get_time_regions(values)
+        time_comps = ['2022-01-01T00:05:00.000Z', '2022-01-02T00:10:00.000Z', '2022-01-03T00:13:00.000Z',
+                      '2022-01-04T23:45:00.000Z', '2022-01-05T23:44:00.000Z', '2022-01-06T23:42:00.000Z']
+        lst = [self.automation.time_to_ang(v) for v in time_comps]
+        ret = self.automation.get_time_regions(lst)
 
         self.assertEqual(2, len(ret))
         self.assertEqual(3, len(ret[0]))    # 00:05, 00:10, 00:13
         self.assertEqual(3, len(ret[1]))    # 23:45, 23:44, 23:42
+        self.assertLess(ret[0][0], ret[1][0])
+
+        # only one region
+        time_comps = ['2022-01-01T18:00:00.000Z', '2022-01-02T18:00:00.000Z', '2022-01-03T18:00:00.000Z'
+                      '2022-01-04T18:00:00.000Z', '2022-01-05T18:00:00.000Z', '2022-01-06T18:00:00.000Z']
+        lst = [self.automation.time_to_ang(v) for v in time_comps]
+        ret = self.automation.get_time_regions(lst)
+
+        self.assertEquals([[270, 270, 270, 270, 270]], ret)
 
     def test_get_numeric_regions(self):
-        self.automation.int_err = 3
+        self.automation.num_err = 3
         self.automation.min_sup = 3
 
         values = [1, 2, 20, 21, 23, 23, 23, 26, 30, 32, 33]
@@ -98,6 +104,9 @@ class TestClustering(unittest.TestCase):
 
         values = [1, 2, 32, 33]
         self.assertEqual([], self.automation.get_numeric_regions(values))
+
+        values = [2, 3, 5, 8]
+        self.assertEquals([[2, 3, 5, 8]], self.automation.get_numeric_regions(values))
 
     def test_get_string_regions(self):
         self.automation.min_sup = 5
@@ -118,16 +127,18 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(['active', 'inactive'], self.automation.get_string_regions(values))
 
     def test_get_candidate_cluster(self):
+        convert = SelfAutomation.time_to_ang
         func = self.automation.get_candidate_cluster
 
         # time attribute
         regions = {'time': [[0, 3.75], [266.25, 267.5, 268.75]]}
-        self.assertEqual([('time', (0, 3.75))], func(regions, [('timestamp', '2022-01-01T00:05:00.000Z')]))
-        self.assertEqual([('time', (266.25, 268.75))], func(regions, [('timestamp', '2022-01-01T17:48:00.000Z')]))
+        self.assertEqual([('time', (0, 3.75))], func(regions, [('time', convert('2022-01-01T00:05:00.000Z'))]))
+        self.assertEqual([('time', (266.25, 268.75))], func(regions, [('time', convert('2022-01-01T17:48:00.000Z'))]))
 
-        regions = {'time': [[266.25, 267.5, 268.75], [355, 358, 0, 2]]}
-        self.assertEqual([('time', (355, 2))], func(regions, [('timestamp', '2022-01-01T23:58:00.000Z')]))
-        self.assertEqual([('time', (355, 2))], func(regions, [('timestamp', '2022-01-01T00:05:00.000Z')]))
+        regions = {'time': [[266.25, 267.5, 268.75, 270], [355, 358, 0, 2]]}
+        self.assertEqual([('time', (355, 2))], func(regions, [('time', convert('2022-01-01T23:58:00.000Z'))]))
+        self.assertEqual([('time', (266.25, 270))], func(regions, [('time', convert('2022-01-01T18:00:00.000Z'))]))
+        self.assertEqual([], func(regions, [('time', convert('2022-01-01T06:00:00.000Z'))]))
 
         # numerical attribute
         regions = {'sen': [[1, 1, 2], [20, 23, 24], [25, 25, 28]]}
@@ -145,6 +156,21 @@ class TestClustering(unittest.TestCase):
 
         # get maximal cluster
         self.assertEqual([('dev', 'active'), ('sen', 'on')], func(regions, [('dev', 'active'), ('sen', 'on')]))
+
+    def test_most_frequent(self):
+        func = self.automation.most_frequent
+
+        # numeric attribute
+        self.assertEqual(20, func([15, 18, 20, 20, 20, 21, 22]))
+        self.assertEqual(20, func([15, 15, 15, 20, 20, 20, 21]))
+
+        # time attribute
+        self.assertEqual(200, func([195, 199, 200, 200, 201, 205], True))
+        self.assertEqual(200, func([195, 199, 199, 200, 200, 201, 205, 210], True))
+        # date changing interval
+        self.assertEqual(358, func([355, 358, 358, 358, 0, 2]))
+        self.assertEqual(0, func([355, 358, 358, 358, 0, 0, 0, 4, 4]))
+        self.assertEqual(358, func([354, 355, 358, 358, 358, 0, 0, 0, 3]))
 
     # test basic utility of cluster_log with string attribute
     def test_cluster_log_str(self):
@@ -170,23 +196,22 @@ class TestClustering(unittest.TestCase):
                 [('dev', 'inactive'), ('sen', 'inactive')], [('dev', 'inactive'), ('sen', 'inactive')]]
         ret = self.automation.cluster_log(logs)
 
-        # returns two cluster
         self.assertEqual([(('dev', 'active'), ('sen', 'inactive')), (('dev', 'inactive'), ('sen', 'inactive'))], ret)
 
-        # cluster for multiple attributes, when every value of second attribute has small support
+        # cluster for multiple attributes where one attribute has small support
         logs = [[('dev', 'active'), ('sen', 'v1')], [('dev', 'active'), ('sen', 'v2')],
                 [('dev', 'active'), ('sen', 'v3')], [('dev', 'active'), ('sen', 'v4')],
                 [('dev', 'active'), ('sen', 'v5')]]
         ret = self.automation.cluster_log(logs)
 
-        # returns two cluster with first attribute
+        # returns two cluster with only first attribute
         self.assertEqual([(('dev', 'active'), )], ret)
 
-    def test_cluster_log_int(self):
-        self.automation.int_err = 3
+    def test_cluster_log_numeric(self):
+        self.automation.num_err = 3
         self.automation.min_sup = 3
 
-        # integer attribute
+        # numeric attribute
         logs = [[('dev', 50)], [('dev', 50)], [('dev', 50)]]
         ret = self.automation.cluster_log(logs)
 
@@ -211,52 +236,57 @@ class TestClustering(unittest.TestCase):
         self.assertEqual([(('dev', 49), )], ret)
 
     def test_cluster_log_time(self):
+        conv = SelfAutomation.time_to_ang
+
         self.automation.min_sup = 3
         self.automation.time_err = 3.75
 
         # time attribute
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-02T18:00:00.000Z')],
-                [('timestamp', '2022-01-03T18:00:00.000Z')], [('timestamp', '2022-01-04T18:00:00.000Z')],
-                [('timestamp', '2022-01-05T18:00:00.000Z')], [('timestamp', '2022-01-06T18:00:00.000Z')],
-                [('timestamp', '2022-01-07T12:00:00.000Z')], [('timestamp', '2022-01-08T12:00:00.000Z')]]
+        logs = [[('time', conv('2022-01-01T18:00:00.000Z'))], [('time', conv('2022-01-02T18:00:00.000Z'))],
+                [('time', conv('2022-01-03T18:00:00.000Z'))], [('time', conv('2022-01-04T18:00:00.000Z'))],
+                [('time', conv('2022-01-05T18:00:00.000Z'))], [('time', conv('2022-01-06T18:00:00.000Z'))],
+                [('time', conv('2022-01-07T12:00:00.000Z'))], [('time', conv('2022-01-08T12:00:00.000Z'))]]
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual([(('time', '18:00'), )], ret)
 
-        # process 24:00 = 00:00 case
-        logs = [[('timestamp', '2022-01-01T23:59:00.000Z')], [('timestamp', '2022-01-01T23:59:00.000Z')],
-                [('timestamp', '2022-01-01T00:01:00.000Z')], [('timestamp', '2022-01-01T00:01:00.000Z')]]
+        # process date changing case
+        logs = [[('time', conv('2022-01-01T23:59:00.000Z'))], [('time', conv('2022-01-01T23:59:00.000Z'))],
+                [('time', conv('2022-01-01T00:01:00.000Z'))], [('time', conv('2022-01-01T00:01:00.000Z'))]]
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual([(('time', '23:59'), )], ret)
 
-        # process 24:00 = 00:00 case & breaking tie
-        logs = [[('timestamp', '2022-01-01T23:55:00.000Z')], [('timestamp', '2022-01-02T23:55:00.000Z')],
-                [('timestamp', '2022-01-03T00:00:00.000Z')], [('timestamp', '2022-01-01T00:00:00.000Z')],
-                [('timestamp', '2022-01-05T00:05:00.000Z')], [('timestamp', '2022-01-06T00:05:00.000Z')]]
+        # process date changing case & breaking tie
+        logs = [[('time', conv('2022-01-01T23:55:00.000Z'))], [('time', conv('2022-01-02T23:55:00.000Z'))],
+                [('time', conv('2022-01-03T00:00:00.000Z'))], [('time', conv('2022-01-01T00:00:00.000Z'))],
+                [('time', conv('2022-01-05T00:05:00.000Z'))], [('time', conv('2022-01-06T00:05:00.000Z'))]]
         ret = self.automation.cluster_log(logs)
 
         self.assertEqual([(('time', '00:00'), )], ret)
 
     def test_cluster_log_info(self):
+        conv = SelfAutomation.time_to_ang
+
         self.automation.min_sup = 3
-        self.automation.int_err = 5
+        self.automation.num_err = 5
         self.automation.time_err = 3.75
 
         # add time interval information
-        logs = [[('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')]]
-        ret = self.automation.cluster_log(logs, info=True)
-
-        self.assertEqual([(('time', ('18:00', ('18:00', '18:00'))), )], ret)
-
-        # add time interval information
-        logs = [[('timestamp', '2022-01-01T17:50:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:00:00.000Z')],
-                [('timestamp', '2022-01-01T18:00:00.000Z')], [('timestamp', '2022-01-01T18:10:00.000Z')]]
+        logs = [[('time', conv('2022-01-01T17:50:00.000Z'))], [('time', conv('2022-01-01T18:00:00.000Z'))],
+                [('time', conv('2022-01-01T18:00:00.000Z'))], [('time', conv('2022-01-01T18:00:00.000Z'))],
+                [('time', conv('2022-01-01T18:00:00.000Z'))], [('time', conv('2022-01-01T18:10:00.000Z'))]]
         ret = self.automation.cluster_log(logs, info=True)
 
         self.assertEqual([(('time', ('18:00', ('17:50', '18:10'))), )], ret)
+
+        # process date changing case
+        logs = [[('time', conv('2022-01-01T23:55:00.000Z'))], [('time', conv('2022-01-02T23:55:00.000Z'))],
+                [('time', conv('2022-01-03T00:00:00.000Z'))], [('time', conv('2022-01-01T00:00:00.000Z'))],
+                [('time', conv('2022-01-05T00:05:00.000Z'))], [('time', conv('2022-01-06T00:05:00.000Z'))]]
+        ret = self.automation.cluster_log(logs, info=True)
+
+        self.assertEqual([(('time', ('00:00', ('23:55', '00:05'))), )], ret)
 
         # add integer median value
         logs = [[('sen', 25)], [('sen', 30)], [('sen', 30)], [('sen', 30)], [('sen', 34)]]
@@ -275,4 +305,3 @@ class TestClustering(unittest.TestCase):
         ret = self.automation.cluster_log(logs, info=True)
 
         self.assertEqual([(('sen', 'act'), )], ret)
-
