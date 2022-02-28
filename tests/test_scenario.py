@@ -45,7 +45,7 @@ class TestScenario(unittest.TestCase):
             self.assertTrue(0)
 
     # generate rule for each command('on' and 'off)
-    # generate EveryAction for time attribute
+    # generate EveryAction for time component
     def test_time(self):
         file_names = self.automation.run('time.json')
         result_1 = SelfAutomation.read_log('./output/time_on_rule.json')
@@ -57,8 +57,8 @@ class TestScenario(unittest.TestCase):
         self.assertEqual(gt_1, result_1)
         self.assertEqual(gt_2, result_2)
 
-    # generate lessThan or greaterThan condition for integer attribute
-    def test_integer(self):
+    # generate lessThan or greaterThan condition for numeric component
+    def test_numeric(self):
         file_names = self.automation.run('sensor_int.json')
         result_1 = SelfAutomation.read_log('./output/sensor_int_on_rule.json')
         gt_1 = SelfAutomation.read_log('answer/sensor_int_on_rule.json')
@@ -69,8 +69,8 @@ class TestScenario(unittest.TestCase):
         self.assertEqual(gt_1, result_1)
         self.assertEqual(gt_2, result_2)
 
-    # generate equal operation for string attribute
-    # generate between operation to combine time attribute
+    # generate equal operation for string component
+    # generate between operation to combine time component
     def test_str(self):
         file_names = self.automation.run('sensor_str.json')
         result_1 = SelfAutomation.read_log('./output/sensor_str_on_rule.json')
