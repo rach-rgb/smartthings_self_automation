@@ -177,7 +177,7 @@ class SelfAutomation:
 
             if candidate in cand_dict:
                 cand_dict[candidate] = cand_dict[candidate] + 1
-            elif candidate is not ():
+            elif candidate != ():
                 cand_dict[candidate] = 1
 
         clusters = []
@@ -194,6 +194,8 @@ class SelfAutomation:
                             center.append(('time', self.ang_to_time(common)))
                         else:
                             center.append(('time', (self.ang_to_time(common),
+
+
                                                     (self.ang_to_time(intv[0]), self.ang_to_time(intv[-1])))))
                     elif self.is_numeric(comp):
                         idx = find_interval(comp[0], 0, len(dense_one_regions[comp[0]]), comp[1][0])
