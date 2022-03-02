@@ -130,7 +130,7 @@ class TestClustering(unittest.TestCase):
         convert = SelfAutomation.time_to_ang
         func = self.automation.get_candidate_cluster
 
-        # time attribute
+        # time component
         regions = {'time': [[0, 3.75], [266.25, 267.5, 268.75]]}
         self.assertEqual([('time', (0, 3.75))], func(regions, [('time', convert('2022-01-01T00:05:00.000Z'))]))
         self.assertEqual([('time', (266.25, 268.75))], func(regions, [('time', convert('2022-01-01T17:48:00.000Z'))]))
@@ -140,14 +140,14 @@ class TestClustering(unittest.TestCase):
         self.assertEqual([('time', (266.25, 270))], func(regions, [('time', convert('2022-01-01T18:00:00.000Z'))]))
         self.assertEqual([], func(regions, [('time', convert('2022-01-01T06:00:00.000Z'))]))
 
-        # numerical attribute
+        # numerical component
         regions = {'sen': [[1, 1, 2], [20, 23, 24], [25, 25, 28]]}
         self.assertEqual([('sen', (20, 24))], func(regions, [('sen', 21)]))
         self.assertEqual([('sen', (1, 2))], func(regions, [('sen', 1)]))
         self.assertEqual([('sen', (25, 28))], func(regions, [('sen', 25)]))
         self.assertEqual([], func(regions, [('sen', 7)]))
 
-        # string attribute
+        # string component
         regions = {'dev': ['active', 'inactive'], 'sen': ['on']}
         self.assertEqual([('dev', 'active')], func(regions, [('dev', 'active'), ('sen', 'off')]))
 
@@ -160,11 +160,11 @@ class TestClustering(unittest.TestCase):
     def test_most_frequent(self):
         func = self.automation.most_frequent
 
-        # numeric attribute
+        # numeric component
         self.assertEqual(20, func([15, 18, 20, 20, 20, 21, 22]))
         self.assertEqual(20, func([15, 15, 15, 20, 20, 20, 21]))
 
-        # time attribute
+        # time component
         self.assertEqual(200, func([195, 199, 200, 200, 201, 205], True))
         self.assertEqual(200, func([195, 199, 199, 200, 200, 201, 205, 210], True))
         # date changing interval
@@ -172,11 +172,11 @@ class TestClustering(unittest.TestCase):
         self.assertEqual(0, func([355, 358, 358, 358, 0, 0, 0, 4, 4]))
         self.assertEqual(358, func([354, 355, 358, 358, 358, 0, 0, 0, 3]))
 
-    # test basic utility of cluster_log with string attribute
+    # test basic utility of cluster_log with string component
     def test_cluster_log_str(self):
         self.automation.min_sup = 3
 
-        # string attribute
+        # string component
         logs = [[('dev', 'active')], [('dev', 'active')], [('dev', 'active')], [('dev', 'active')], [('dev', 'active')],
                 [('dev', 'inactive')], [('dev', 'inactive')], [('dev', 'inactive')]]
         ret = self.automation.cluster_log(logs)
@@ -189,7 +189,7 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual([], ret)
 
-        # cluster for multiple attributes
+        # cluster for multiple components
         logs = [[('dev', 'active'), ('sen', 'inactive')], [('dev', 'active'), ('sen', 'inactive')],
                 [('dev', 'active'), ('sen', 'inactive')], [('dev', 'active'), ('sen', 'inactive')],
                 [('dev', 'active'), ('sen', 'inactive')], [('dev', 'inactive'), ('sen', 'inactive')],
@@ -198,20 +198,20 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual([(('dev', 'active'), ('sen', 'inactive')), (('dev', 'inactive'), ('sen', 'inactive'))], ret)
 
-        # cluster for multiple attributes where one attribute has small support
+        # cluster for multiple components where one attribute has small support
         logs = [[('dev', 'active'), ('sen', 'v1')], [('dev', 'active'), ('sen', 'v2')],
                 [('dev', 'active'), ('sen', 'v3')], [('dev', 'active'), ('sen', 'v4')],
                 [('dev', 'active'), ('sen', 'v5')]]
         ret = self.automation.cluster_log(logs)
 
-        # returns two cluster with only first attribute
+        # returns two cluster with only first component
         self.assertEqual([(('dev', 'active'), )], ret)
 
     def test_cluster_log_numeric(self):
         self.automation.num_err = 3
         self.automation.min_sup = 3
 
-        # numeric attribute
+        # numeric component
         logs = [[('dev', 50)], [('dev', 50)], [('dev', 50)]]
         ret = self.automation.cluster_log(logs)
 
@@ -241,7 +241,7 @@ class TestClustering(unittest.TestCase):
         self.automation.min_sup = 3
         self.automation.time_err = 3.75
 
-        # time attribute
+        # time component
         logs = [[('time', conv('2022-01-01T18:00:00.000Z'))], [('time', conv('2022-01-02T18:00:00.000Z'))],
                 [('time', conv('2022-01-03T18:00:00.000Z'))], [('time', conv('2022-01-04T18:00:00.000Z'))],
                 [('time', conv('2022-01-05T18:00:00.000Z'))], [('time', conv('2022-01-06T18:00:00.000Z'))],

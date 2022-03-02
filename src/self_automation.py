@@ -4,12 +4,12 @@ from datetime import datetime
 from collections import Counter
 
 
-# generate rule and mode from logs
+# generate rule from logs
 class SelfAutomation:
     INTMAX = 987654321
 
     def __init__(self, input_dir='./logs/', param=None):
-        # set log directory and hyperparameters
+        # set directory and hyperparameters
         self.input_dir = input_dir
         if param is None:
             self.min_sup = 5  # minimum support
@@ -87,7 +87,7 @@ class SelfAutomation:
         return action
 
     # return time operation with 'between'
-    # query given with form ('time', (cluster, (start, end)))
+    # query given with form ('time', (mode, (min, max)))
     @staticmethod
     def time_operation(query):
         start = query[1][1][0]
@@ -97,7 +97,7 @@ class SelfAutomation:
                             'end': {'time': {'hour': int(end[0:2]), 'minute': int(end[3:5])}}}}
 
     # return numerical related operation
-    # query given with ('device', (cluster, mean))
+    # query given with ({neighbor_device}, (mode, mean))
     @staticmethod
     def numeric_operation(query, attr):
         if query[1][0] < query[1][1]:
@@ -110,7 +110,7 @@ class SelfAutomation:
                      "right": {"integer": query[1][0]}}}
 
     # return string related operation
-    # query given with ('device', value)
+    # query given with ({neighbor_device}, value)
     @staticmethod
     def string_operation(query, attr):
         operation = {"equals": {"left": {"device": {"devices": [query[0].split(':')[0]], "attribute": attr}},

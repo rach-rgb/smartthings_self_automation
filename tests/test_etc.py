@@ -3,6 +3,7 @@ import unittest
 from src.self_automation import SelfAutomation
 
 
+# test helper functions of SelfAutomation
 class TestSelfAutomation(unittest.TestCase):
     def setUp(self):
         self.automation = SelfAutomation()
