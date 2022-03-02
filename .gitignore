@@ -130,9 +130,4 @@ dmypy.json
 
 # sample files
 src/example/
-tests/output/
-tests/answer/
-tests/logs/
-tests/rules/
 .idea/
-/tests/logs/

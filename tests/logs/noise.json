@@ -1,0 +1,23 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T00:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-02T01:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-03T02:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-04T03:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-05T04:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-06T05:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-07T06:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-08T07:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-09T08:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-10T09:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-11T10:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-12T11:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-13T12:00:00.000Z", "command": "on" },
+    { "timestamp":"2022-01-14T13:00:00.000Z", "command": "on" }
+  ],
+  "neighbors": []
+}
+
+

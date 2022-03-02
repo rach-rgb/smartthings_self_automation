@@ -1,0 +1,23 @@
+{
+	"name": "my-device-off",
+	"actions": [
+        {
+            "every": { "specific": {
+                    "time": { "hour": 8, "minute": 0 }
+            },
+                "actions": [
+                    {
+                        "command": {
+                            "devices": [ "my-device" ],
+                            "commands": [ {
+                              "capability": "switch",
+                              "command": "off"
+                            }]
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}
+

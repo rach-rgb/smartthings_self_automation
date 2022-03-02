@@ -1,0 +1,39 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T04:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-02T18:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "OFF" ] },
+    { "timestamp":"2022-01-03T06:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-04T07:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-05T08:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-06T18:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "OFF" ] },
+    { "timestamp":"2022-01-07T10:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-08T18:00:00.000Z", "command": "on", "my-sensor": [ "inactive" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-09T18:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-10T10:00:00.000Z", "command": "on", "my-sensor": [ "active" ], "my-device-2": [ "ON" ] },
+    { "timestamp":"2022-01-11T18:00:00.000Z", "command": "on", "my-sensor": [ "inactive" ], "my-device-2": [ "OFF" ] }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor",
+      "capability": "sensor",
+      "value": [
+        {
+          "attribute": "temperature",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "device": "my-device-2",
+      "capability": "switch",
+      "value": [
+        {
+          "attribute": "status",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

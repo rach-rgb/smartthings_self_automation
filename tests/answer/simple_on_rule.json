@@ -1,0 +1,26 @@
+{
+	"name": "dev-on",
+	"actions": [
+        {
+            "every": {
+                "specific": {
+                    "time": {
+                        "hour": 18,
+                        "minute": 0
+                    }
+                },
+                "actions": [
+                    {
+                        "command": {
+                            "devices": [ "dev" ],
+                            "commands": [ {
+                                "capability": "switch",
+                                "command": "on"
+                            }]
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

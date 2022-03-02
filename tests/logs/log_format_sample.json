@@ -1,0 +1,28 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T00:00:00.000Z", "command": "on",
+      "my-sensor": [ 72, "active" ], "dev": [ "active" ] },
+    { "timestamp":"2022-01-02T00:00:00.000Z", "command": "on",
+      "my-sensor": [ 72, "active" ], "dev": [ "active" ] },
+    { "timestamp":"2022-01-03T00:00:00.000Z", "command": "off",
+      "my-sensor": [ 50, "inactive" ], "dev": [ "inactive" ] }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor", "capability": "sensor",
+      "value": [
+        { "attribute": "temperature", "type": "integer" },
+        { "attribute": "motion", "type": "string" }
+      ]
+    },
+    {
+      "device": "dev", "capability": "switch",
+      "value": [
+        { "attribute": "motion",  "type": "string" }
+      ]
+    }
+  ]
+}
+

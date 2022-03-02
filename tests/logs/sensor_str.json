@@ -1,0 +1,36 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T10:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-02T11:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-03T12:00:00.000Z", "command": "on", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-04T13:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-05T14:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-06T15:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-07T16:00:00.000Z", "command": "on", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-08T17:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-09T18:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-10T19:00:00.000Z", "command": "on", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-11T17:50:00.000Z", "command": "on", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-12T18:00:00.000Z", "command": "off", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-13T18:01:00.000Z", "command": "off", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-14T18:04:00.000Z", "command": "off", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-15T18:09:00.000Z", "command": "off", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-16T17:47:00.000Z", "command": "off", "my-sensor": [ "active" ] },
+    { "timestamp":"2022-01-17T18:15:00.000Z", "command": "off", "my-sensor": [ "inactive" ] },
+    { "timestamp":"2022-01-18T18:00:00.000Z", "command": "off", "my-sensor": [ "inactive" ] }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor",
+      "capability": "sensor",
+      "value": [
+        {
+          "attribute": "motion",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

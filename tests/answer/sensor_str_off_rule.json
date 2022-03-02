@@ -1,0 +1,47 @@
+{
+  "name": "my-device-my-sensor-off",
+  "actions": [
+    {
+      "if": {
+        "and": [
+          {
+            "between": {"value": {"time": {"reference": "Now"}},
+              "start": {"time": {"hour": 17, "minute": 47}},
+              "end": {"time": {"hour": 18, "minute": 15}}
+            }
+          },
+          {
+            "equals": {
+              "left": {
+                "device": {
+                  "devices": [
+                    "my-sensor"
+                  ],
+                  "attribute": "motion"
+                }
+              },
+              "right": {
+                "string": "inactive"
+              }
+            }
+          }
+        ],
+        "then": [
+          {
+            "command": {
+              "devices": [
+                "my-device"
+              ],
+              "commands": [
+                {
+                  "capability": "switch",
+                  "command": "off"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

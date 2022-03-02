@@ -1,0 +1,21 @@
+{
+  "device": "my-device",
+  "capability": "switch",
+  "history": [
+    { "timestamp":"2022-01-01T01:00:00.000Z", "command": "on", "my-sensor": [ 74 ] },
+    { "timestamp":"2022-01-02T01:00:00.000Z", "command": "on", "my-sensor": [ 74 ] },
+    { "timestamp":"2022-01-03T01:00:00.000Z", "command": "on", "my-sensor": [ 74 ] }
+  ],
+  "neighbors": [
+    {
+      "device": "my-sensor",
+      "capability": "sensor",
+      "value": [
+        {
+          "attribute": "temperature",
+          "type": "integer"
+        }
+      ]
+    }
+  ]
+}

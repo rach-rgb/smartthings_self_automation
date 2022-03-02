@@ -1,0 +1,37 @@
+{
+  "name": "my-device-my-sensor-off",
+  "actions": [
+    {
+      "if": {
+        "greater_than": {
+          "left": {
+            "device": {
+              "devices": [
+                "my-sensor"
+              ],
+              "attribute": "temperature"
+            }
+          },
+          "right": {
+            "integer": 42
+          }
+        },
+        "then": [
+          {
+            "command": {
+              "devices": [
+                "my-device"
+              ],
+              "commands": [
+                {
+                  "capability": "switch",
+                  "command": "off"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
